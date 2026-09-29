@@ -3,6 +3,10 @@
 
 locals {
   host = "${var.subdomain}.${var.domain}"
+
+  # Every game can tell who's playing from the shared login (auth.js in the
+  # game-template reads ACCOUNTS_URL). A game's own env can override it.
+  env = merge({ ACCOUNTS_URL = "https://${var.domain}" }, var.env)
 }
 
 # --- Running ------------------------------------------------------------------
@@ -93,7 +97,7 @@ resource "google_cloud_run_v2_service" "this" {
       }
 
       dynamic "env" {
-        for_each = var.env
+        for_each = local.env
         content {
           name  = env.key
           value = env.value

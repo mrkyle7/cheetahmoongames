@@ -53,7 +53,9 @@ creates `mrkyle7/snap` with a skeleton game, ready to deploy, and prints the `ga
 ```
 site/                  the home page: a small Node server with no dependencies
   public/index.html    the page itself, one card per game
-  server.js            serves the page; redirects Bartenders' old URLs on this domain
+  public/login.html    sign in or create an account, for every game
+  server.js            serves the pages; redirects Bartenders' old URLs on this domain
+  account.js           /api/account/*: sign-in, passed on to Bartenders
 terraform/
   games.tf             the list of games (edit this to add one)
   modules/game/        everything one game needs: service, subdomain, DNS, deploy access
@@ -88,9 +90,11 @@ npm test
 BARTENDERS_URL=https://bartenders.cheetahmoongames.com npm start   # http://localhost:8080
 ```
 
-Besides the page, the server handles traffic for Bartenders, which used to live on this domain:
+**Signing in.** `/login` is where players sign in or create an account, for every game. `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
 
-- Every path other than `/`, `/assets/*`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
+Besides that, the server handles traffic for Bartenders, which used to live on this domain:
+
+- Every path other than `/`, `/login`, `/api/account/*`, `/assets/*`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
 - `/sw.js` serves a service worker that unregisters itself, which clears out the one Bartenders installed on this domain.
 - A Bartenders login cookie from before the move only belongs to this domain. The server moves it onto `COOKIE_DOMAIN` (the whole of `cheetahmoongames.com`), so players stay logged in when they follow a link to the game.
 

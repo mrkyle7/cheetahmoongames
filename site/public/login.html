@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in · Cheetah Moon Games</title>
+    <meta name="description" content="One Cheetah Moon account for every game.">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        main {
+            max-width: 440px;
+            margin: 0 auto;
+            padding: 48px 16px 40px;
+        }
+
+        .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; font-weight: 700; }
+        .brand .moon { width: 36px; height: 36px; }
+        .brand:focus-visible { outline: 3px solid var(--moon); outline-offset: 4px; border-radius: 4px; }
+
+        .panel {
+            margin-top: 28px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 26px 24px 24px;
+        }
+
+        h1 { margin: 0; font-size: 28px; line-height: 1.15; }
+        .sub { margin: 6px 0 22px; color: var(--muted); }
+        .sub strong { color: var(--text); font-weight: 600; }
+
+        form { display: grid; gap: 16px; }
+        label { display: grid; gap: 6px; font-weight: 600; font-size: 15px; }
+        .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+        input {
+            font: inherit;
+            color: var(--text);
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 11px 12px;
+            width: 100%;
+        }
+        input:focus { outline: 3px solid var(--moon); outline-offset: 1px; border-color: transparent; }
+        input[aria-invalid="true"] { border-color: var(--danger); }
+
+        .password { position: relative; }
+        .password input { padding-right: 64px; }
+        .reveal {
+            position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+            font: inherit; font-size: 13px; font-weight: 600;
+            color: var(--muted); background: none; border: 0; padding: 6px 8px; cursor: pointer; border-radius: 4px;
+        }
+        .reveal:hover { color: var(--text); }
+        .reveal:focus-visible { outline: 2px solid var(--moon); }
+
+        .primary {
+            font: inherit; font-weight: 700;
+            color: #1a1405;
+            background: var(--moon);
+            border: 0; border-radius: 6px;
+            padding: 12px 16px;
+            cursor: pointer;
+        }
+        .primary:hover { background: #f7df8d; }
+        .primary:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+        .primary[disabled] { opacity: 0.6; cursor: progress; }
+
+        .error {
+            margin: 0;
+            padding: 10px 12px;
+            border-left: 4px solid var(--danger);
+            background: rgba(255, 107, 107, 0.1);
+            border-radius: 4px;
+        }
+        .error:empty { display: none; }
+
+        .switch { margin: 20px 0 0; color: var(--muted); text-align: center; }
+        .link {
+            font: inherit; color: var(--moon); background: none; border: 0; padding: 0;
+            text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+        }
+        .link:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
+
+        .signed-in p { margin: 0 0 18px; }
+        .signed-in .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+        .signed-in .primary { text-decoration: none; display: inline-block; }
+
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <main>
+        <a class="brand" href="/" aria-label="Cheetah Moon Games home">
+            <span class="moon" aria-hidden="true"><span></span><span></span><span></span></span>
+            Cheetah Moon Games
+        </a>
+
+        <section class="panel" aria-labelledby="title">
+            <h1 id="title">Sign in</h1>
+            <p class="sub" id="sub">One account for every Cheetah Moon game.</p>
+
+            <p class="error" id="error" role="alert"></p>
+
+            <div class="signed-in" id="signedIn" hidden>
+                <p>You're signed in as <strong id="signedInName"></strong>.</p>
+                <div class="row">
+                    <a class="primary" id="continue" href="/">Continue</a>
+                    <button class="link" type="button" id="signOut">Sign out</button>
+                </div>
+            </div>
+
+            <form id="loginForm" novalidate>
+                <label>Name
+                    <input id="loginName" name="username" autocomplete="username" required maxlength="50" autocapitalize="off" spellcheck="false">
+                </label>
+                <label>Password
+                    <span class="password">
+                        <input id="loginPassword" name="password" type="password" autocomplete="current-password" required maxlength="128">
+                        <button class="reveal" type="button" aria-controls="loginPassword" aria-label="Show password">Show</button>
+                    </span>
+                </label>
+                <button class="primary" type="submit">Sign in</button>
+            </form>
+
+            <form id="registerForm" novalidate hidden>
+                <label>Name
+                    <span class="hint" id="nameHint">What other players see. 3 to 50 letters, numbers, spaces, hyphens or underscores.</span>
+                    <input id="regName" name="username" autocomplete="username" required minlength="3" maxlength="50"
+                           pattern="[A-Za-z0-9 _\-]{3,50}" aria-describedby="nameHint" spellcheck="false">
+                </label>
+                <label>Email
+                    <span class="hint" id="emailHint">Only used if you need to get back into your account.</span>
+                    <input id="regEmail" name="email" type="email" autocomplete="email" required aria-describedby="emailHint">
+                </label>
+                <label>Password
+                    <span class="hint" id="passwordHint">At least 8 characters, with a letter and a number.</span>
+                    <span class="password">
+                        <input id="regPassword" name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128" aria-describedby="passwordHint">
+                        <button class="reveal" type="button" aria-controls="regPassword" aria-label="Show password">Show</button>
+                    </span>
+                </label>
+                <button class="primary" type="submit">Create account</button>
+            </form>
+
+            <p class="switch" id="switchToRegister">New here? <button class="link" type="button" data-mode="register">Create an account</button></p>
+            <p class="switch" id="switchToLogin" hidden>Already have an account? <button class="link" type="button" data-mode="login">Sign in</button></p>
+        </section>
+    </main>
+
+    <script>
+        (function () {
+            const GAMES = { bartenders: 'Bartenders of Corfu', boxer: 'The Boxer', bezique: 'Bezique' };
+            const params = new URLSearchParams(location.search);
+            const next = params.get('next') || '/';
+            const $ = (id) => document.getElementById(id);
+            const error = $('error');
+
+            // Name the game the player came from, if we know it.
+            let gameName = null;
+            try {
+                const host = new URL(next, location.href).hostname.split('.')[0];
+                gameName = GAMES[host] || null;
+            } catch (e) { /* stay generic */ }
+
+            function setSub(mode) {
+                const sub = $('sub');
+                sub.textContent = '';
+                if (gameName) {
+                    sub.append('Then carry on to ');
+                    const b = document.createElement('strong');
+                    b.textContent = gameName;
+                    sub.append(b, '. One account works for every Cheetah Moon game.');
+                } else {
+                    sub.textContent = 'One account for every Cheetah Moon game.';
+                }
+            }
+
+            function setMode(mode, focus) {
+                const register = mode === 'register';
+                $('title').textContent = register ? 'Create an account' : 'Sign in';
+                document.title = (register ? 'Create an account' : 'Sign in') + ' · Cheetah Moon Games';
+                $('loginForm').hidden = register;
+                $('registerForm').hidden = !register;
+                $('switchToRegister').hidden = register;
+                $('switchToLogin').hidden = !register;
+                error.textContent = '';
+                setSub(mode);
+                if (focus) $(register ? 'regName' : 'loginName').focus();
+            }
+
+            document.querySelectorAll('[data-mode]').forEach((b) => {
+                b.addEventListener('click', () => setMode(b.dataset.mode, true));
+            });
+
+            document.querySelectorAll('.reveal').forEach((b) => {
+                b.addEventListener('click', () => {
+                    const input = $(b.getAttribute('aria-controls'));
+                    const show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    b.textContent = show ? 'Hide' : 'Show';
+                    b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                });
+            });
+
+            function fail(message, input) {
+                error.textContent = message;
+                document.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+                if (input) { input.setAttribute('aria-invalid', 'true'); input.focus(); }
+            }
+
+            // Checks the browser can make before bothering the server.
+            function checkRegister(form) {
+                const name = form.username.value.trim();
+                if (name.length < 3) return ['Your name needs at least 3 characters.', form.username];
+                if (!/^[A-Za-z0-9 _-]+$/.test(name)) return ['Names can only use letters, numbers, spaces, hyphens and underscores.', form.username];
+                if (!form.email.checkValidity() || !form.email.value) return ['Please enter an email address like name@example.com.', form.email];
+                const pw = form.password.value;
+                if (pw.length < 8) return ['Your password needs at least 8 characters.', form.password];
+                if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return ['Your password needs at least one letter and one number.', form.password];
+                return null;
+            }
+
+            async function submit(form, path, body) {
+                const button = form.querySelector('.primary');
+                button.disabled = true;
+                error.textContent = '';
+                try {
+                    const r = await fetch(path, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...body, next }),
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.ok) {
+                        location.assign(data.next || '/');
+                        return;
+                    }
+                    fail(data.error || 'Something went wrong. Please try again.');
+                } catch (e) {
+                    fail("We couldn't reach the server. Check your connection and try again.");
+                }
+                button.disabled = false;
+            }
+
+            $('loginForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const f = e.target;
+                if (!f.username.value.trim()) return fail('Please enter your name.', f.username);
+                if (!f.password.value) return fail('Please enter your password.', f.password);
+                submit(f, '/api/account/login', { username: f.username.value.trim(), password: f.password.value });
+            });
+
+            $('registerForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const problem = checkRegister(f);
+                if (problem) return fail(problem[0], problem[1]);
+                submit(f, '/api/account/register', {
+                    username: f.username.value.trim(), email: f.email.value.trim(), password: f.password.value,
+                });
+            });
+
+            $('signOut').addEventListener('click', async () => {
+                await fetch('/api/account/logout', { method: 'POST' }).catch(() => {});
+                $('signedIn').hidden = true;
+                setMode('login', true);
+            });
+
+            setMode(params.get('mode') === 'register' ? 'register' : 'login', false);
+
+            // Already signed in: offer to carry on instead.
+            fetch('/api/account/me?next=' + encodeURIComponent(next)).then((r) => r.json()).then((me) => {
+                if (!me.signedIn) return;
+                $('signedInName').textContent = me.name;
+                $('continue').textContent = gameName ? 'Continue to ' + gameName : 'Continue';
+                $('continue').href = me.next || '/';
+                $('signedIn').hidden = false;
+                $('loginForm').hidden = true;
+                $('registerForm').hidden = true;
+                $('switchToRegister').hidden = true;
+                $('switchToLogin').hidden = true;
+                $('title').textContent = 'Welcome back';
+            }).catch(() => {});
+
+            if (!$('signedIn').hidden) return;
+            $(params.get('mode') === 'register' ? 'regName' : 'loginName').focus();
+        })();
+    </script>
+</body>
+</html>
