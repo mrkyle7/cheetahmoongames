@@ -64,6 +64,7 @@ terraform/
   bartenders.tf        Bartenders (it has secrets and a database, so it gets its own file)
   github.tf            GitHub Actions sign-in and the CI service account's roles
   shared.tf            APIs, the data bucket, and docker-us (Bartenders' image registry)
+  email.tf             DNS records that let Brevo send email as @cheetahmoongames.com
 scripts/
   new-game.sh          creates a new game's repo from game-template/
   game-template/       the skeleton: Node server, Dockerfile, deploy workflow, CLAUDE.md
@@ -167,14 +168,7 @@ Almost everything is in Terraform. These few things aren't, because Terraform ne
 
 "Forgot your password?" on `/login` emails a one-time link, valid for an hour. Bartenders sends it through [Brevo](https://www.brevo.com)'s API, from `noreply@cheetahmoongames.com` (`email_from` in `terraform/variables.tf`). Until the steps below are done, the page still works but no email goes out; Bartenders logs `BREVO_API_KEY not set`.
 
-1. **Let Brevo send as cheetahmoongames.com.** In Brevo: Senders, Domains & Dedicated IPs → Domains → **Add a domain** → `cheetahmoongames.com`. Choose to add the DNS records yourself. Brevo lists a few TXT/CNAME records: a `brevo-code` TXT on the domain itself, DKIM, and DMARC. Add each to the Cloud DNS zone:
-
-   ```sh
-   gcloud dns record-sets create NAME --type=TYPE --ttl=300 --rrdatas='VALUE' \
-     --zone=cheetahmoongames-com --project=bartenders-464918
-   ```
-
-   `NAME` ends with a dot, e.g. `cheetahmoongames.com.` or `brevo1._domainkey.cheetahmoongames.com.`. TXT values go in quotes inside the single quotes: `--rrdatas='"brevo-code:abc123"'`. If the domain already has a TXT record (`gcloud dns record-sets list --zone=cheetahmoongames-com --project=bartenders-464918`), add the new value to it with `record-sets update`, listing the old values too. Then press **Authenticate** in Brevo. (Or send the records to Claude to add them to Terraform.)
+1. **Let Brevo send as cheetahmoongames.com.** Brevo only sends from a domain whose DNS proves it may. Those records are in `terraform/email.tf` (a `brevo-code` TXT, two DKIM CNAMEs and DMARC), so once that's applied, go to Brevo → Senders, Domains & Dedicated IPs → Domains → `cheetahmoongames.com` and press **Authenticate**. If Brevo ever gives new values, update `email.tf`.
 2. **Make an API key.** Brevo → SMTP & API → API keys → **Generate a new API key**.
 3. **Give it to Bartenders.** In mrkyle7/bartenders-of-corfu: Settings → Secrets and variables → Actions → New repository secret, named `BREVO_API_KEY`. The next deploy of Bartenders copies it into the `brevo-api-key` secret in Secret Manager and starts a revision that uses it. To deploy without a code change, re-run its latest CI/CD run on `main`.
 
