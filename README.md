@@ -39,7 +39,13 @@ That leaves each repo's default branch as the way in. Anyone who can push or mer
 - block force pushes and deletions
 - tick "Do not allow bypassing the above settings" if others have admin access
 
-To put a new game on the site, see **[ADDING_A_GAME.md](ADDING_A_GAME.md)**.
+## Adding a game
+
+```sh
+scripts/new-game.sh snap --title "Snap"
+```
+
+creates `mrkyle7/snap` with a skeleton game, ready to deploy, and prints the `games.tf` entry to add here. **[ADDING_A_GAME.md](ADDING_A_GAME.md)** walks through the whole process.
 
 ## Layout
 
@@ -54,6 +60,9 @@ terraform/
   bartenders.tf        Bartenders (it has secrets and a database, so it gets its own file)
   github.tf            GitHub Actions sign-in and the CI service account's roles
   shared.tf            APIs, the data bucket, and docker-us (Bartenders' image registry)
+scripts/
+  new-game.sh          creates a new game's repo from game-template/
+  game-template/       the skeleton: Node server, Dockerfile, deploy workflow, CLAUDE.md
 .github/workflows/deploy.yml
 ```
 
@@ -61,7 +70,11 @@ terraform/
 
 `.github/workflows/deploy.yml` runs on every pull request and on merges to the default branch (`main` or `master`).
 
-- **Pull request:** tests the home page, checks Terraform formatting and validity, and posts the Terraform plan in the run's summary (Actions → the run → Summary). Read the plan before merging.
+- **Pull request:**
+  - tests the home page
+  - generates a game with `scripts/new-game.sh` and runs its tests, so the skeleton can't quietly break
+  - checks Terraform formatting and validity
+  - posts the Terraform plan in the run's summary (Actions → the run → Summary). Read it before merging.
 - **Merge:** applies the Terraform, then builds `site/`, deploys it to the `cheetahmoongames` Cloud Run service and checks it's live. A failed deploy rolls back to the last healthy revision.
 
 The workflow won't apply a plan that **deletes or replaces** anything; removing a game or re-creating a domain mapping, for example. In that case the run fails and says what it would delete. To go ahead, run the workflow by hand (Actions → Deploy → Run workflow) with **allow_destroy** ticked.
@@ -93,82 +106,27 @@ terraform plan
 
 Prefer letting CI apply changes. If you do apply by hand, commit the same change here straight after, or the next CI run will undo it.
 
-## One-time setup
+## Set up by hand
 
-The Terraform used to live in the Bartenders repo, with its state in a local file on whoever last ran it. These steps move it here. Run them once, from the machine that holds that state file.
+Almost everything is in Terraform. These few things aren't, because Terraform needs them before it can run. If the project is ever rebuilt, recreate them first:
 
-1. **Create the state bucket** (versioned, so any earlier state can be recovered):
+- **`github-terraform` service account.** Terraform manages its roles and who can use it (`terraform/github.tf`), but not the account itself.
+- **State bucket** `gs://bartenders-464918-tfstate`, versioned:
 
-   ```sh
-   gcloud storage buckets create gs://bartenders-464918-tfstate \
-     --project=bartenders-464918 --location=us-east1 --uniform-bucket-level-access
-   gcloud storage buckets update gs://bartenders-464918-tfstate --versioning
-   ```
+  ```sh
+  gcloud storage buckets create gs://bartenders-464918-tfstate \
+    --project=bartenders-464918 --location=us-east1 --uniform-bucket-level-access
+  gcloud storage buckets update gs://bartenders-464918-tfstate --versioning
+  ```
 
-   Also switch on the two APIs Terraform needs before it can read anything:
+- **Two APIs** Terraform needs before it can read anything. Service accounts bill API calls to this project, so CI fails without them even if your own `gcloud` login works. `terraform/shared.tf` keeps them, and the other APIs the setup uses, switched on after that.
 
-   ```sh
-   gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com \
-     --project bartenders-464918
-   ```
+  ```sh
+  gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com \
+    --project bartenders-464918
+  ```
 
-   Your own `gcloud` login may work without them, because it can bill API calls to another project. GitHub Actions run as service accounts, which bill to this project, so their plans fail with "Cloud Resource Manager API has not been used in project … or it is disabled". `terraform/shared.tf` declares these and the other APIs the setup uses, so once they're on, Terraform keeps them on.
-
-2. **Move the existing state into it.** Copy the state file from your Bartenders checkout, then let `init` upload it:
-
-   ```sh
-   cp ../bartenders-of-corfu/terraform/terraform.tfstate terraform/
-   cd terraform
-   terraform init -migrate-state      # answer "yes" to copy the state to the new backend
-   rm terraform.tfstate terraform.tfstate.backup   # now in the bucket
-   ```
-
-3. **Review the plan.** `terraform plan` should show only:
-   - **moves:** The Boxer's account, service, public access, domain mapping and DNS record move into `module.game["boxer"]`. Nothing is recreated. The service shows as "updated", but only with provider defaults, not setting changes.
-   - **new:**
-     - the home page service, its account and its image registry
-     - `bartenders-deploy` and `the-boxer-deploy`, with their scoped permissions
-     - The Boxer's own image registry (`the-boxer`)
-     - `github-terraform`'s roles for applying Terraform
-     - this repo's permission to act as `github-terraform`, one binding each for `master` and `main`
-     - `github-terraform-plan`, its read-only roles, and read access to the state bucket
-   - **deleted:** the old shared-CI bindings:
-     - the Bartenders and Boxer repos acting as `github-terraform`
-     - its project-wide `run.developer` role
-     - its write access to `docker-us`
-     - its access to the Supabase and VAPID secrets
-     - its right to act as the two runtime accounts
-     - The Boxer's read access to `docker-us`
-   - **updates:**
-     - the GitHub sign-in rule: now lists this repo, maps `repository_ref` and refuses `pull_request_target`
-     - `LANDING_HOST` and `BARTENDERS_URL` removed from the Bartenders service
-     - the apex DNS records
-   - **one replacement:** `google_cloud_run_domain_mapping.cheetahmoongames` (see below)
-
-   Anything else being destroyed or replaced means the state doesn't match this code. Stop and look before applying.
-
-4. **Apply it yourself,** at a quiet time: `terraform apply`. This first apply has to run as you, because it's what gives this repo access in the first place.
-
-   From this point, the Bartenders and Boxer repos can no longer use `github-terraform`. Their deploys fail until the next step.
-
-5. **Merge the three pull requests straight away.** Order doesn't matter:
-   - **this repo:** CI finds nothing left to apply, then deploys the home page over the placeholder
-   - **`bartenders-of-corfu`:** deploys as `bartenders-deploy`, and removes the old Terraform and home-page code
-   - **`the-boxer`:** deploys as `the-boxer-deploy`, into its own registry
-
-### Why `cheetahmoongames.com` is briefly down
-
-The domain already exists, but its domain mapping points at the **Bartenders** service. Cloud Run domain mappings can't be changed to point at a different service; the API only creates and deletes them. So Terraform deletes the mapping and creates a new one pointing at the home page service, and Google issues a new HTTPS certificate for it.
-
-Until that certificate is ready, usually 15–60 minutes, `cheetahmoongames.com` doesn't load: the home page, and the redirects from old Bartenders links. The game subdomains have their own mappings and aren't affected. The only ways around it are keeping the domain on the Bartenders service, or putting a load balancer in front of every service (about $18 a month). Neither seemed worth it for a one-off gap, so apply at a quiet time.
-
-Check progress on the certificate with:
-
-```sh
-gcloud beta run domain-mappings describe --domain cheetahmoongames.com \
-  --region us-east1 --project bartenders-464918 --format='yaml(status.conditions)'
-```
-
-It's done when `CertificateProvisioned` and `Ready` are both `True`.
-
-After that first apply, `terraform/games.tf` has `moved` blocks that have done their job. They're harmless to keep and can be deleted in any later change.
+- **Cloud DNS zone** `cheetahmoongames-com`. Terraform adds records to it but doesn't own it.
+- **Domain ownership.** `cheetahmoongames.com` is verified in [Google Search Console](https://search.google.com/search-console). Cloud Run only lets a verified owner of the domain create domain mappings, so `github-terraform` must be an **owner** of that property. Without it, adding a game fails at apply with "Caller is not authorized to administer the domain". To add it, signed in as the account that verified the domain:
+  1. Open the domain's owner page: <https://www.google.com/webmasters/verification/details?domain=cheetahmoongames.com>. From Search Console, it's Settings → Users and permissions → ⋮ next to your name → Manage property owners.
+  2. Choose **Add an owner** and enter `github-terraform@bartenders-464918.iam.gserviceaccount.com`.

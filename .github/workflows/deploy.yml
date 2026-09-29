@@ -59,6 +59,37 @@ jobs:
           docker logs site
           exit 1
 
+  # scripts/new-game.sh and its template aren't used by the site, so check here
+  # that a freshly generated game still passes its own tests and smoke test.
+  new-game-template:
+    name: Test new-game skeleton
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate a game
+        run: scripts/new-game.sh ci-check --title "CI Check & Co's Game!" --no-github --dir "$RUNNER_TEMP/ci-check"
+
+      - name: Its tests pass and its container serves the page
+        working-directory: ${{ runner.temp }}/ci-check
+        run: |
+          npm ci
+          npm test
+          MARKER=$(grep -E '^  PAGE_MARKER:' .github/workflows/ci-cd.yml | sed -E 's/^  PAGE_MARKER: "(.*)"$/\1/')
+          [ "$MARKER" = "CI Check & Co's Game!" ] || { echo "PAGE_MARKER is '$MARKER'"; exit 1; }
+          docker build -t game:ci .
+          docker run -d --name game -p 8080:8080 game:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8080/ | grep -qF "$MARKER" && exit 0
+            sleep 1
+          done
+          docker logs game
+          exit 1
+
   terraform-check:
     name: Check terraform
     runs-on: ubuntu-latest
