@@ -15,6 +15,7 @@ Check what's done before starting. Ask the user if unsure, and update these boxe
 - [x] Repo created from the skeleton (`scripts/new-game.sh`)
 - [ ] `__NAME__` entry added to `terraform/games.tf` in mrkyle7/cheetahmoongames, merged, and its workflow applied successfully
 - [ ] Card for the game added to `site/public/index.html` in mrkyle7/cheetahmoongames (can be the same pull request)
+- [ ] The game's own icon in `public/icon.svg`, with the PNGs in `public/icons/` rendered from it, and the same art on its home page card
 - [ ] Repo variable `DEPLOY_ENABLED` set to `true` in this repo: `gh variable set DEPLOY_ENABLED --body true -R __OWNER__/__NAME__`
 - [ ] A push to `main` deployed successfully (Actions → CI/CD)
 - [ ] `https://__SUBDOMAIN__.cheetahmoongames.com` loads over HTTPS (the certificate can take 15–60 minutes after the DNS record appears)
@@ -27,7 +28,10 @@ Check what's done before starting. Ask the user if unsure, and update these boxe
 - **Keep the workflow's `env` block as generated.** `REPOSITORY`, `IMAGE_NAME`, `SERVICE_NAME` and `SERVICE_ACCOUNT` must match the `__NAME__` entry in games.tf. The deploy account can only push to its own registry and deploy its own service.
 - **Keep `PAGE_MARKER` current.** It's the text the container and deploy smoke tests look for on `/`. If the page stops showing "__TITLE__", update it in `.github/workflows/ci-cd.yml`.
 - **No keys or secrets for Google Cloud in this repo.** GitHub Actions sign in without them. Only jobs on `main` of this repo can deploy; Google Cloud enforces that, not the workflow file.
-- **Players are Cheetah Moon accounts.** They sign in once at `https://cheetahmoongames.com/login`, and `auth.js` tells the server who they are (`await auth.player(req)` gives `{ id, name }` or null). Don't build a sign-in, or ask for names or passwords, in the game. Key games and records by `id`; `name` is for display and can contain spaces. See "Players and signing in" in ADDING_A_GAME.md.
+- **Players are Cheetah Moon accounts.** They sign in once at `https://cheetahmoongames.com/login`, and `auth.js` tells the server who they are (`await auth.player(req)` gives `{ id, name }` or null). That page also creates accounts and resets forgotten passwords by email. Don't build a sign-in, sign-up or password reset, or ask for names or passwords, in the game. Key games and records by `id`; `name` is for display and can contain spaces. See "Players and signing in" in ADDING_A_GAME.md.
+- **Link back to Cheetah Moon Games.** The game's main page keeps a visible link to `https://cheetahmoongames.com/`, like the "← Cheetah Moon Games" in the skeleton's top bar.
+- **Its own icons.** Replace the placeholder `public/icon.svg` (the favicon) with the game's own art, then render the PNGs in `public/icons/` from it; see "Icons and installing" in ADDING_A_GAME.md. Every page links the favicon, the Apple icon and the manifest.
+- **Installable.** Keep `public/manifest.webmanifest` (name and colours in step with the game), `public/sw.js` and `public/offline.html`, and register the service worker on every page. The service worker must not cache the game itself, only the offline page.
 - **Don't log, store or forward the `userjwt` cookie.** Only `auth.js` reads it. Keep `auth.js` as it is in the skeleton; fixes to it go in mrkyle7/cheetahmoongames first.
 - **Instances:** by default up to 3 can run, and players may land on different ones. If players must meet on the same server, for example rooms kept in memory, set `max_instances = 1` (and, for WebSockets, `timeout`, `concurrency` and `session_affinity`) in the games.tf entry. The Boxer does this.
 
