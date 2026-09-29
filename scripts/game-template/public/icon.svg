@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Placeholder: the game's initial under the Cheetah Moon. Replace with the game's own art. -->
+  <rect width="512" height="512" fill="#0d0f1c"/>
+  <circle cx="370" cy="142" r="62" fill="#f3d36b"/>
+  <circle cx="352" cy="124" r="9" fill="#8a6410"/>
+  <circle cx="386" cy="150" r="7" fill="#8a6410"/>
+  <circle cx="362" cy="172" r="8" fill="#8a6410"/>
+  <text x="236" y="352" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="260" font-weight="700" fill="#f1f2f8">__INITIAL__</text>
+</svg>

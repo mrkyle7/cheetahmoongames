@@ -40,7 +40,8 @@ The skeleton, from `scripts/game-template/`:
 
 | File | What it is |
 | --- | --- |
-| `server.js`, `public/index.html` | A dependency-free Node server showing a "coming soon" page. It listens on `PORT` and serves `/`, `/healthz` and `/api/me` (who's signed in). |
+| `server.js`, `public/index.html` | A dependency-free Node server showing a "coming soon" page, with a bar linking back to cheetahmoongames.com and showing who's signed in. It listens on `PORT` and serves `/`, `/healthz` and `/api/me` (who's signed in). |
+| `public/icon.svg`, `public/icons/`, `public/manifest.webmanifest`, `public/sw.js`, `public/offline.html` | The favicon, app icons, and what makes the game installable. The placeholder icon is the game's initial under the Cheetah Moon. See [Icons and installing](#icons-and-installing). |
 | `auth.js` | Tells the game who's playing, from the shared Cheetah Moon sign-in. See [Players and signing in](#players-and-signing-in). |
 | `test/` | Its tests (`npm test`) |
 | `Dockerfile` | The container Cloud Run runs |
@@ -51,6 +52,12 @@ Whatever the game becomes, its container must:
 - **listen on the port in `PORT`.** Cloud Run sets it to 8080.
 - **serve the game at `/`.** It gets the whole subdomain.
 - **keep nothing important on local disk,** which is wiped whenever the instance restarts.
+
+And every game on the site has these, which the skeleton starts you with. Keep them as the game grows:
+- **The shared sign-in.** Players use their Cheetah Moon account, through `auth.js`, and the game shows who's signed in or links to sign in. Never build a sign-in, sign-up or password reset of your own: `cheetahmoongames.com/login` does all three. See [Players and signing in](#players-and-signing-in).
+- **A link back to cheetahmoongames.com** on the game's main page, like "← Cheetah Moon Games" in the skeleton's top bar, The Boxer's lobby and Bezique's header.
+- **Its own icons:** a favicon and app icons in the game's own style, replacing the placeholder, plus card art on the home page. See [Icons and installing](#icons-and-installing).
+- **Installable as an app** on phones and desktops: a web app manifest and a service worker. See [Icons and installing](#icons-and-installing).
 
 ## 2. Add the game in this repo
 
@@ -158,6 +165,29 @@ It's live when `Ready` is `True`. Until then the address won't load over HTTPS. 
 Open a Claude session in the game's repo. Its `CLAUDE.md` tells Claude to read this file first, and has:
 - the checklist for getting the game live, so a session can see which of the steps above are done
 - the rules the game must keep: `PORT`, serving at `/`, no local state, leaving the workflow's names alone, keeping `PAGE_MARKER` current, and knowing players only through `auth.js`
+
+## Icons and installing
+
+Players can install every game from the browser (Add to Home Screen on phones, the install button in desktop Chrome and Edge), and it opens full screen like an app. The skeleton has everything this needs:
+
+| File | What it's for |
+| --- | --- |
+| `public/icon.svg` | The favicon and the master icon. Starts as the game's initial under the Cheetah Moon; replace it with the game's own art. Keep it simple and bold: it's shown as small as 16 px. |
+| `public/icons/icon-192.png`, `icon-512.png` | App icons. Chrome needs a 192 px and a 512 px PNG before it offers to install. |
+| `public/icons/icon-maskable-512.png` | The Android home screen icon. Android crops it to a circle or squircle, so the art sits in the middle 70% on a full background. |
+| `public/icons/apple-touch-icon.png` | The iPhone and iPad home screen icon (180 px). iOS doesn't use the manifest's icons. |
+| `public/manifest.webmanifest` | The app's name, icons and colours; `display: standalone` opens it without the browser's address bar. Keep `theme_color` and `background_color` in step with the game's look, and the `<meta name="theme-color">` in the page too. |
+| `public/sw.js`, `public/offline.html` | A service worker, which browsers need before offering to install. It only shows `offline.html` when there's no connection; everything else goes to the server, so deploys show up straight away. |
+
+The PNGs start as a plain Cheetah Moon. Once `icon.svg` is the game's own, render the PNGs from it with the script in this repo (it uses Playwright's Chromium):
+
+```sh
+npx -y -p playwright node scripts/render-icons.js ../snap/public/icon.svg ../snap/public/icons
+```
+
+Every page of the game should link the favicon, the Apple icon and the manifest, and register the service worker, as `public/index.html` does. Check it in Chrome: DevTools → Application → Manifest shows any problems with installing.
+
+Use the same art for the game's card on the home page (`site/public/index.html`), so players recognise it.
 
 ## Players and signing in
 

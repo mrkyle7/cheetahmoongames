@@ -117,18 +117,22 @@ T_NAME="$(sed_escape "$NAME")"
 T_TITLE="$(sed_escape "$TITLE")"
 T_SUB="$(sed_escape "$SUBDOMAIN")"
 T_OWNER="$(sed_escape "$OWNER")"
-find "$DIR" -type f -print0 | while IFS= read -r -d '' f; do
+# The first letter or digit of the title, for the placeholder icon.
+T_INITIAL="$(printf '%s' "$TITLE" | tr -cd '[:alnum:]' | cut -c1 | tr '[:lower:]' '[:upper:]')"
+# Text files only: sed would damage the PNG icons.
+find "$DIR" -type f ! -name '*.png' -print0 | while IFS= read -r -d '' f; do
   sed -i.bak \
     -e "s|__NAME__|$T_NAME|g" \
     -e "s|__TITLE__|$T_TITLE|g" \
     -e "s|__SUBDOMAIN__|$T_SUB|g" \
     -e "s|__OWNER__|$T_OWNER|g" \
+    -e "s|__INITIAL__|$T_INITIAL|g" \
     "$f"
   rm -f "$f.bak"
 done
 
-if grep -rEq "__[A-Z]+__" "$DIR"; then
-  grep -rEn "__[A-Z]+__" "$DIR" >&2
+if grep -rIEq "__[A-Z]+__" "$DIR"; then
+  grep -rIEn "__[A-Z]+__" "$DIR" >&2
   die "unfilled placeholders left in the skeleton (above)"
 fi
 

@@ -67,7 +67,8 @@ terraform/
   email.tf             DNS records that let Brevo send email as @cheetahmoongames.com
 scripts/
   new-game.sh          creates a new game's repo from game-template/
-  game-template/       the skeleton: Node server, Dockerfile, deploy workflow, CLAUDE.md
+  render-icons.js      renders a game's icon.svg into its PNG app icons
+  game-template/       the skeleton: Node server, sign-in, icons, install support, Dockerfile, deploy workflow, CLAUDE.md
 .github/workflows/deploy.yml
 ```
 
