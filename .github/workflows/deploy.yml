@@ -102,6 +102,8 @@ jobs:
 
       - name: Plan
         run: |
+          # Without pipefail a failed plan is hidden behind tee's success.
+          set -o pipefail
           # Read-only account: it can't take the state lock.
           terraform plan -input=false -lock=false -no-color | tee plan.txt
           {
@@ -146,6 +148,9 @@ jobs:
 
       - name: Plan
         run: |
+          # Without pipefail a failed plan is hidden behind tee's success and the
+          # job carries on to apply.
+          set -o pipefail
           terraform plan -input=false -lock-timeout=5m -no-color -out=tfplan | tee plan.txt
           {
             echo "## Terraform apply"

@@ -15,6 +15,29 @@ resource "google_project_service" "cloudrun" {
   disable_on_destroy = false
 }
 
+# APIs this setup depends on. GitHub Actions call them as service accounts,
+# which bill quota to this project, so they must be enabled here (a person's
+# gcloud login often bills another project and hides a disabled API).
+#
+# cloudresourcemanager and serviceusage must be switched on by hand once
+# before the first apply: terraform needs them to read anything, including
+# this resource. See README ("One-time setup").
+resource "google_project_service" "required" {
+  for_each = toset([
+    "cloudresourcemanager.googleapis.com", # project IAM policy
+    "serviceusage.googleapis.com",         # reading and enabling APIs
+    "iam.googleapis.com",                  # service accounts and the GitHub pool
+    "iamcredentials.googleapis.com",       # GitHub Actions acting as service accounts
+    "sts.googleapis.com",                  # exchanging GitHub's token
+    "artifactregistry.googleapis.com",     # image registries
+    "dns.googleapis.com",                  # the cheetahmoongames-com zone
+    "storage.googleapis.com",              # state and data buckets
+  ])
+  project            = var.project_name
+  service            = each.value
+  disable_on_destroy = false
+}
+
 resource "google_artifact_registry_repository" "docker_us" {
   project       = var.project_name
   location      = var.region
