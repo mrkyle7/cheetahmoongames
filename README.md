@@ -105,6 +105,15 @@ The Terraform used to live in the Bartenders repo, with its state in a local fil
    gcloud storage buckets update gs://bartenders-464918-tfstate --versioning
    ```
 
+   Also switch on the two APIs Terraform needs before it can read anything:
+
+   ```sh
+   gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com \
+     --project bartenders-464918
+   ```
+
+   Your own `gcloud` login may work without them, because it can bill API calls to another project. GitHub Actions run as service accounts, which bill to this project, so their plans fail with "Cloud Resource Manager API has not been used in project … or it is disabled". `terraform/shared.tf` declares these and the other APIs the setup uses, so once they're on, Terraform keeps them on.
+
 2. **Move the existing state into it.** Copy the state file from your Bartenders checkout, then let `init` upload it:
 
    ```sh
