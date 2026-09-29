@@ -12,11 +12,12 @@ Every game runs as its own Cloud Run service in the `bartenders-464918` project 
 
 ## Who can do what
 
-GitHub Actions sign in to Google Cloud without keys, through Workload Identity Federation. Each repo can act as exactly one service account:
+GitHub Actions sign in to Google Cloud without keys, through Workload Identity Federation. Each repo, and for this repo each kind of run, can act as exactly one service account:
 
 | Repo | Acts as | Can |
 | --- | --- | --- |
-| `mrkyle7/cheetahmoongames` (this repo) | `github-terraform` | Apply the Terraform: IAM, service accounts, sign-in, DNS, secrets, every service. Also deploys the home page. |
+| `mrkyle7/cheetahmoongames`, **default branch only** | `github-terraform` | Apply the Terraform: IAM, service accounts, sign-in, DNS, secrets, every service. Also deploys the home page. |
+| `mrkyle7/cheetahmoongames`, pull requests and other branches | `github-terraform-plan` | Read only: the project's configuration and IAM (not secret values) and the Terraform state, enough to show a plan |
 | `mrkyle7/bartenders-of-corfu` | `bartenders-deploy` | Push to the `docker-us` registry, deploy the `bartenders` service, read and update its two Supabase secrets |
 | each game's repo, e.g. `mrkyle7/the-boxer` | `<name>-deploy` | Push to the game's own registry and deploy the game's own service |
 
@@ -24,7 +25,18 @@ Every deploy account also has read-only access to Cloud Run, so its rollback ste
 
 Everything above is defined in `terraform/github.tf`, `terraform/bartenders.tf` and `terraform/modules/game`.
 
-The Terraform plan on pull requests also runs as `github-terraform`. So anyone who can push a branch to this repo can run code with its access, not only merges to the default branch. That's fine while only trusted people can push here. If that changes, give pull requests a separate read-only account.
+### Why a pull request can't apply anything
+
+The branch rule is enforced by Google Cloud, not by the workflow file, so a pull request that rewrites `.github/workflows/deploy.yml` doesn't get around it.
+- GitHub signs a token for every job that says which repo, branch (`ref`) and event it's running for.
+- Google only lets a job act as `github-terraform` when that token says `mrkyle7/cheetahmoongames` on `refs/heads/master` (or `main`).
+- Pull requests run as `refs/pull/<n>/merge` and other branches as their own ref, so they only get the read-only plan account.
+- `pull_request_target` runs with the default branch's ref, so it's refused for every repo.
+
+That leaves the default branch as the way in: anyone who can push or merge to it can apply anything. Protect it in GitHub (Settings → Branches → add a rule for `master`):
+- require a pull request with an approving review before merging
+- block force pushes and deletions
+- tick "Do not allow bypassing the above settings" if others have admin access
 
 To put a new game on the site, see **[ADDING_A_GAME.md](ADDING_A_GAME.md)**.
 
@@ -108,7 +120,8 @@ The Terraform used to live in the Bartenders repo, with its state in a local fil
      - `bartenders-deploy` and `the-boxer-deploy`, with their scoped permissions
      - The Boxer's own image registry (`the-boxer`)
      - `github-terraform`'s roles for applying Terraform
-     - this repo's permission to act as `github-terraform`
+     - this repo's permission to act as `github-terraform`, one binding each for `master` and `main`
+     - `github-terraform-plan`, its read-only roles, and read access to the state bucket
    - **deleted:** the old shared-CI bindings:
      - the Bartenders and Boxer repos acting as `github-terraform`
      - its project-wide `run.developer` role
@@ -117,7 +130,7 @@ The Terraform used to live in the Bartenders repo, with its state in a local fil
      - its right to act as the two runtime accounts
      - The Boxer's read access to `docker-us`
    - **updates:**
-     - the GitHub sign-in rule, now listing this repo
+     - the GitHub sign-in rule: now lists this repo, maps `repository_ref` and refuses `pull_request_target`
      - `LANDING_HOST` and `BARTENDERS_URL` removed from the Bartenders service
      - the apex DNS records
    - **one replacement:** `google_cloud_run_domain_mapping.cheetahmoongames` (see below)

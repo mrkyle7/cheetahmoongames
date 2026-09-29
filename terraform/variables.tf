@@ -58,6 +58,18 @@ variable "site_github_repo" {
   description = "This repo: applies the terraform and deploys the home page."
 }
 
+variable "site_deploy_branches" {
+  type        = list(string)
+  default     = ["master", "main"]
+  description = "Branches of site_github_repo whose workflows may act as terraform_service_account. Everything else, pull requests included, only gets the read-only plan account."
+}
+
+variable "state_bucket" {
+  type        = string
+  default     = "bartenders-464918-tfstate"
+  description = "Terraform state bucket. Must match the backend block in versions.tf."
+}
+
 variable "bartenders_github_repo" {
   type        = string
   default     = "mrkyle7/bartenders-of-corfu"

@@ -26,8 +26,11 @@ env:
   SERVICE_NAME: cheetahmoongames
   TERRAFORM_VERSION: 1.14.5
   WIF_PROVIDER: projects/987774112216/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-  # Only this repo can act as github-terraform (see terraform/github.tf).
+  # GCP only lets this repo's default branch act as github-terraform, and
+  # anything else (pull requests, other branches) only as the read-only plan
+  # account; see terraform/github.tf. Editing this file can't change that.
   SERVICE_ACCOUNT: github-terraform@bartenders-464918.iam.gserviceaccount.com
+  PLAN_SERVICE_ACCOUNT: github-terraform-plan@bartenders-464918.iam.gserviceaccount.com
 
 jobs:
   site-test:
@@ -88,18 +91,19 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.SERVICE_ACCOUNT }}
+          service_account: ${{ env.PLAN_SERVICE_ACCOUNT }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
-      - run: terraform init -input=false
+      - run: terraform init -input=false -lock=false
 
       - name: Plan
         run: |
-          terraform plan -input=false -lock-timeout=5m -no-color -out=tfplan | tee plan.txt
+          # Read-only account: it can't take the state lock.
+          terraform plan -input=false -lock=false -no-color | tee plan.txt
           {
             echo "## Terraform plan"
             echo
