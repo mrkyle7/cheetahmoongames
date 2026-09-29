@@ -1,6 +1,7 @@
 # ---------------------------------------------------------------------------
 # Bartenders of Corfu — bartenders.cheetahmoongames.com
-# Deployed by mrkyle7/bartenders-of-corfu (image: docker-us/bartenders).
+# Deployed by mrkyle7/bartenders-of-corfu as bartenders-deploy
+# (image: docker-us/bartenders).
 # Supabase is external; its URL/key and the VAPID keys live in Secret Manager.
 # ---------------------------------------------------------------------------
 
@@ -8,12 +9,6 @@ resource "google_service_account" "bartenders_run" {
   project      = var.project_name
   account_id   = "bartenders-run"
   display_name = "Cloud Run service account for bartenders"
-}
-
-resource "google_service_account_iam_member" "ci_impersonates_run_sa" {
-  service_account_id = google_service_account.bartenders_run.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.ci_service_account}"
 }
 
 # --- Secrets ------------------------------------------------------------------
@@ -81,49 +76,6 @@ resource "google_secret_manager_secret_iam_member" "run_reads_key" {
   secret_id = google_secret_manager_secret.supabase_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.bartenders_run.email}"
-}
-
-# CI reads current value (to diff) and adds new versions on deploy
-resource "google_secret_manager_secret_iam_member" "ci_reads_url" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.supabase_url.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${var.ci_service_account}"
-}
-
-resource "google_secret_manager_secret_iam_member" "ci_reads_key" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.supabase_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${var.ci_service_account}"
-}
-
-resource "google_secret_manager_secret_iam_member" "ci_writes_url" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.supabase_url.secret_id
-  role      = "roles/secretmanager.secretVersionAdder"
-  member    = "serviceAccount:${var.ci_service_account}"
-}
-
-resource "google_secret_manager_secret_iam_member" "ci_writes_key" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.supabase_key.secret_id
-  role      = "roles/secretmanager.secretVersionAdder"
-  member    = "serviceAccount:${var.ci_service_account}"
-}
-
-resource "google_secret_manager_secret_iam_member" "ci_reads_vapid_private" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.vapid_private_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${var.ci_service_account}"
-}
-
-resource "google_secret_manager_secret_iam_member" "ci_reads_vapid_public" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.vapid_public_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${var.ci_service_account}"
 }
 
 # --- Service ------------------------------------------------------------------
@@ -244,6 +196,68 @@ resource "google_cloud_run_service_iam_member" "public" {
   service  = google_cloud_run_v2_service.bartenders.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+# --- Deploying: mrkyle7/bartenders-of-corfu only ------------------------------
+#
+# The Bartenders repo's workflow acts as this account. It can push images to
+# docker-us, deploy new revisions of the bartenders service (nothing else),
+# and read and update the two Supabase secrets it syncs on each deploy.
+
+resource "google_service_account" "bartenders_deploy" {
+  project      = var.project_name
+  account_id   = "bartenders-deploy"
+  display_name = "GitHub Actions deploys for bartenders"
+}
+
+resource "google_service_account_iam_member" "github_deploy_bartenders" {
+  service_account_id = google_service_account.bartenders_deploy.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.bartenders_github_repo}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "bartenders_deploy_developer" {
+  project  = google_cloud_run_v2_service.bartenders.project
+  location = google_cloud_run_v2_service.bartenders.location
+  name     = google_cloud_run_v2_service.bartenders.name
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.bartenders_deploy.email}"
+}
+
+# Read-only, so the workflow can list revisions when rolling back.
+resource "google_project_iam_member" "bartenders_deploy_run_viewer" {
+  project = var.project_name
+  role    = "roles/run.viewer"
+  member  = "serviceAccount:${google_service_account.bartenders_deploy.email}"
+}
+
+# New revisions run as bartenders-run.
+resource "google_service_account_iam_member" "bartenders_deploy_acts_as_run" {
+  service_account_id = google_service_account.bartenders_run.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.bartenders_deploy.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "bartenders_deploy_pushes_images" {
+  project    = var.project_name
+  location   = google_artifact_registry_repository.docker_us.location
+  repository = google_artifact_registry_repository.docker_us.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.bartenders_deploy.email}"
+}
+
+# Reads the current value (to diff) and adds a new version when it changed.
+resource "google_secret_manager_secret_iam_member" "bartenders_deploy_secret_access" {
+  for_each = {
+    url_read  = { secret = google_secret_manager_secret.supabase_url.secret_id, role = "roles/secretmanager.secretAccessor" }
+    key_read  = { secret = google_secret_manager_secret.supabase_key.secret_id, role = "roles/secretmanager.secretAccessor" }
+    url_write = { secret = google_secret_manager_secret.supabase_url.secret_id, role = "roles/secretmanager.secretVersionAdder" }
+    key_write = { secret = google_secret_manager_secret.supabase_key.secret_id, role = "roles/secretmanager.secretVersionAdder" }
+  }
+  project   = var.project_name
+  secret_id = each.value.secret
+  role      = each.value.role
+  member    = "serviceAccount:${google_service_account.bartenders_deploy.email}"
 }
 
 # --- Domain -------------------------------------------------------------------

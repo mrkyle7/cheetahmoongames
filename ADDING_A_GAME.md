@@ -2,7 +2,11 @@
 
 Each game lives in its own GitHub repo and runs as its own Cloud Run service at `<name>.cheetahmoongames.com`, like [The Boxer](https://github.com/mrkyle7/the-boxer). Adding one takes two pull requests:
 
-1. **This repo** creates the game's place on the site: its Cloud Run service, subdomain, DNS record, permission for its repo to deploy, and a card on the home page.
+1. **This repo** creates the game's place on the site:
+   - its Cloud Run service and image registry
+   - its subdomain and DNS record
+   - a deploy account that only the game's repo can use, and that can only deploy this game
+   - a card on the home page
 2. **The game's repo** gets a workflow that builds and deploys the game there.
 
 The example below adds a game called **Snap** at `snap.cheetahmoongames.com` from the repo `mrkyle7/snap`.
@@ -38,7 +42,7 @@ locals {
     boxer = { ... }
 
     snap = {
-      name        = "snap"              # Cloud Run service name and image name
+      name        = "snap"              # service, registry and image name
       subdomain   = "snap"              # → snap.cheetahmoongames.com
       github_repo = "mrkyle7/snap"      # the repo allowed to deploy it
     }
@@ -59,7 +63,7 @@ Those three fields are all a simple game needs. The optional ones:
 | `env` | none | Plain settings for the container, e.g. `env = { MAX_PLAYERS = "6" }`. Don't put secrets here; see below. |
 
 **Naming rules:**
-- `name` must be 26 characters or fewer: the service account is called `<name>-run`, and Google caps those at 30.
+- `name` must be 23 characters or fewer: accounts are called `<name>-run` and `<name>-deploy`, and Google caps those at 30.
 - `name` must be lower case with hyphens and no other punctuation.
 - `subdomain` must not already be in use.
 
@@ -78,27 +82,34 @@ For the button colour, add a rule next to `.bartenders .play` and `.boxer .play`
 ### Open the pull request
 
 The workflow posts the Terraform plan in the run's summary. For a new game, it should only **add** resources:
-- `module.game["snap"]`: its service account, Cloud Run service, public access, domain mapping, DNS record and deploy permission
+- `module.game["snap"]`:
+  - its runtime and deploy accounts
+  - its image registry
+  - the Cloud Run service and its public access
+  - the domain mapping and DNS record
+  - the deploy account's permissions: deploy this service, push to this registry, and read-only Cloud Run so its rollback step can list revisions
 - an update to `google_iam_workload_identity_pool_provider.github` to allow the new repo
 
 Merge it. CI applies the plan and redeploys the home page with the new card. The new service starts out showing Google's "hello" placeholder until the game's repo deploys its real image.
 
 ## 3. Add a deploy workflow to the game's repo
 
-Copy The Boxer's [`.github/workflows/ci-cd.yml`](https://github.com/mrkyle7/the-boxer/blob/main/.github/workflows/ci-cd.yml) into the game's repo and change two lines:
+Copy The Boxer's [`.github/workflows/ci-cd.yml`](https://github.com/mrkyle7/the-boxer/blob/main/.github/workflows/ci-cd.yml) into the game's repo and change four lines, all based on the `name` from `games.tf`:
 
 ```yaml
 env:
-  IMAGE_NAME: snap      # the `name` from games.tf
-  SERVICE_NAME: snap    # the `name` from games.tf
+  REPOSITORY: snap
+  IMAGE_NAME: snap
+  SERVICE_NAME: snap
+  SERVICE_ACCOUNT: snap-deploy@bartenders-464918.iam.gserviceaccount.com
 ```
 
-Leave `PROJECT_ID`, `REGION`, `REPOSITORY`, `WIF_PROVIDER` and `CI_SERVICE_ACCOUNT` as they are. Every game deploys through the same account; the entry in `games.tf` is what lets this repo use it. No secrets or keys are needed in the game's repo.
+Leave `PROJECT_ID`, `REGION` and `WIF_PROVIDER` as they are. No secrets or keys are needed in the game's repo: the entry in `games.tf` is what lets this repo, and only this repo, act as `snap-deploy`.
 
 Then change the `test` job to run the game's own tests. It must also check that the container starts: the Boxer version runs the image and looks for its page title.
 
 On merge, the workflow:
-1. builds the image and pushes it to `us-east1-docker.pkg.dev/bartenders-464918/docker-us/snap`
+1. builds the image and pushes it to `us-east1-docker.pkg.dev/bartenders-464918/snap/snap`
 2. deploys it
 3. checks the live service serves the page
 4. rolls back if the deploy fails
@@ -117,18 +128,18 @@ It's live when `Ready` is `True`. Until then the address won't load over HTTPS. 
 ## Things to know
 
 - **Login cookie.** Bartenders' login cookie is shared across `cheetahmoongames.com`, so browsers send it to every game's subdomain. Don't log it, store it or pass it on. If a game ever needs to know who a player is, ask Bartenders' API for it instead of reading the token.
-- **Games that need secrets or a database.** The `game` module only covers plain settings. For Secret Manager secrets, a database or other extra infrastructure, add them in a file of their own, as `terraform/bartenders.tf` does for Bartenders, and grant the game's service account access there. The account is `<name>-run@bartenders-464918.iam.gserviceaccount.com`.
-- **Removing a game.** Delete its entry in `games.tf` and its card. The plan will delete its service, subdomain and DNS record, so the merge run refuses to apply it. Run the workflow by hand (Actions → Deploy → Run workflow) with **allow_destroy** ticked. The game's images stay in the registry until its cleanup rules remove them.
+- **Games that need secrets or a database.** The `game` module only covers plain settings. For Secret Manager secrets, a database or other extra infrastructure, add them in a file of their own, as `terraform/bartenders.tf` does for Bartenders. The game reads them as `<name>-run@bartenders-464918.iam.gserviceaccount.com`; grant that account access. If the game's workflow also needs to change them, grant `<name>-deploy` access to just those secrets.
+- **Removing a game.** Delete its entry in `games.tf` and its card. The plan will delete its service, subdomain and DNS record, so the merge run refuses to apply it. Run the workflow by hand (Actions → Deploy → Run workflow) with **allow_destroy** ticked. This also deletes the game's image registry and every image in it.
 - **Renaming a game** (`name` or `subdomain`) replaces its service or domain mapping, which also needs **allow_destroy**. A new subdomain gets a new certificate, so expect a gap while it's issued.
 
 ## If something goes wrong
 
-- **"Permission denied" or "unable to acquire impersonated credentials" in the game's deploy:**
+- **"Permission denied" or "unable to acquire impersonated credentials" at sign-in:**
   - This repo's pull request isn't merged and applied yet.
   - Or `github_repo` in `games.tf` doesn't match the repo exactly (`owner/name`).
-- **The deploy succeeds but the subdomain still shows the placeholder:**
-  - `SERVICE_NAME` in the game's workflow probably doesn't match `name` in `games.tf`. `gcloud run deploy` then creates a separate service with no subdomain instead of failing.
-  - Fix the name, then delete the stray service in the Cloud Run console.
+  - Or `SERVICE_ACCOUNT` names another game's account.
+- **"Permission denied" on push or deploy:**
+  - `REPOSITORY`, `SERVICE_NAME` or `SERVICE_ACCOUNT` in the game's workflow probably doesn't match `name` in `games.tf`. The deploy account can only push to its own registry and deploy its own service.
 - **The merge run fails at "Refuse deletions unless allowed":**
   - The plan deletes or replaces something. Read the list it prints. If that's intended, re-run by hand with **allow_destroy**; if not, fix the change.
 - **The certificate stays pending for hours:**

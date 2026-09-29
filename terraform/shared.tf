@@ -1,5 +1,6 @@
 # ---------------------------------------------------------------------------
-# Shared by every game: APIs, the Docker image registry and a data bucket.
+# Shared: APIs and a data bucket. docker-us predates per-game registries and
+# now holds Bartenders' images only; other games get their own (modules/game).
 # ---------------------------------------------------------------------------
 
 resource "google_project_service" "secretmanager" {

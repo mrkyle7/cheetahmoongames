@@ -10,6 +10,22 @@ The home page at **https://cheetahmoongames.com** and the Google Cloud setup beh
 
 Every game runs as its own Cloud Run service in the `bartenders-464918` project and deploys from its own repo. This repo owns what they share: the Terraform for every service, domain, DNS record and permission, plus the home page.
 
+## Who can do what
+
+GitHub Actions sign in to Google Cloud without keys, through Workload Identity Federation. Each repo can act as exactly one service account:
+
+| Repo | Acts as | Can |
+| --- | --- | --- |
+| `mrkyle7/cheetahmoongames` (this repo) | `github-terraform` | Apply the Terraform: IAM, service accounts, sign-in, DNS, secrets, every service. Also deploys the home page. |
+| `mrkyle7/bartenders-of-corfu` | `bartenders-deploy` | Push to the `docker-us` registry, deploy the `bartenders` service, read and update its two Supabase secrets |
+| each game's repo, e.g. `mrkyle7/the-boxer` | `<name>-deploy` | Push to the game's own registry and deploy the game's own service |
+
+Every deploy account also has read-only access to Cloud Run, so its rollback step can list revisions. It can see other services but can't change them. Each game has its own image registry, because Google only grants registry access per registry, not per image, so a shared one would let any game overwrite another's images.
+
+Everything above is defined in `terraform/github.tf`, `terraform/bartenders.tf` and `terraform/modules/game`.
+
+The Terraform plan on pull requests also runs as `github-terraform`. So anyone who can push a branch to this repo can run code with its access, not only merges to the default branch. That's fine while only trusted people can push here. If that changes, give pull requests a separate read-only account.
+
 To put a new game on the site, see **[ADDING_A_GAME.md](ADDING_A_GAME.md)**.
 
 ## Layout
@@ -24,7 +40,7 @@ terraform/
   site.tf              the home page service and the apex domain
   bartenders.tf        Bartenders (it has secrets and a database, so it gets its own file)
   github.tf            GitHub Actions sign-in and the CI service account's roles
-  shared.tf            APIs, the Docker image registry, the data bucket
+  shared.tf            APIs, the data bucket, and docker-us (Bartenders' image registry)
 .github/workflows/deploy.yml
 ```
 
@@ -86,26 +102,42 @@ The Terraform used to live in the Bartenders repo, with its state in a local fil
    ```
 
 3. **Review the plan.** `terraform plan` should show only:
-   - **moves** (The Boxer into `module.game["boxer"]`, the Bartenders deploy binding renamed): nothing is recreated
+   - **moves:** The Boxer's account, service, public access, domain mapping and DNS record move into `module.game["boxer"]`. Nothing is recreated. The service shows as "updated", but only with provider defaults, not setting changes.
    - **new:**
-     - the `cheetahmoongames` home page service, its account and its public access
-     - this repo's permission to deploy
-     - the CI account's roles for applying Terraform
+     - the home page service, its account and its image registry
+     - `bartenders-deploy` and `the-boxer-deploy`, with their scoped permissions
+     - The Boxer's own image registry (`the-boxer`)
+     - `github-terraform`'s roles for applying Terraform
+     - this repo's permission to act as `github-terraform`
+   - **deleted:** the old shared-CI bindings:
+     - the Bartenders and Boxer repos acting as `github-terraform`
+     - its project-wide `run.developer` role
+     - its write access to `docker-us`
+     - its access to the Supabase and VAPID secrets
+     - its right to act as the two runtime accounts
+     - The Boxer's read access to `docker-us`
    - **updates:**
      - the GitHub sign-in rule, now listing this repo
      - `LANDING_HOST` and `BARTENDERS_URL` removed from the Bartenders service
      - the apex DNS records
-   - **one replacement:** `google_cloud_run_domain_mapping.cheetahmoongames`, which moves the apex from the Bartenders service to the home page service
+   - **one replacement:** `google_cloud_run_domain_mapping.cheetahmoongames` (see below)
 
    Anything else being destroyed or replaced means the state doesn't match this code. Stop and look before applying.
 
-4. **Apply it yourself:** `terraform apply`. This first apply has to run as you, because it's what gives this repo and the CI account the access CI needs to apply later.
+4. **Apply it yourself,** at a quiet time: `terraform apply`. This first apply has to run as you, because it's what gives this repo access in the first place.
 
-   Replacing the apex domain mapping means Google issues `cheetahmoongames.com` a new HTTPS certificate. Expect the home page, and the redirects from old Bartenders links, to be unreachable for roughly 15–60 minutes. The game subdomains aren't affected.
+   From this point, the Bartenders and Boxer repos can no longer use `github-terraform`. Their deploys fail until the next step.
 
-5. **Merge this repo's pull request straight away.** CI finds nothing left to apply and deploys the real home page over the placeholder, well before the new certificate is ready.
+5. **Merge the three pull requests straight away.** Order doesn't matter:
+   - **this repo:** CI finds nothing left to apply, then deploys the home page over the placeholder
+   - **`bartenders-of-corfu`:** deploys as `bartenders-deploy`, and removes the old Terraform and home-page code
+   - **`the-boxer`:** deploys as `the-boxer-deploy`, into its own registry
 
-6. **Merge the matching Bartenders pull request.** It removes the old Terraform and home-page code from that repo.
+### Why `cheetahmoongames.com` is briefly down
+
+The domain already exists, but its domain mapping points at the **Bartenders** service. Cloud Run domain mappings can't be changed to point at a different service; the API only creates and deletes them. So Terraform deletes the mapping and creates a new one pointing at the home page service, and Google issues a new HTTPS certificate for it.
+
+Until that certificate is ready, usually 15–60 minutes, `cheetahmoongames.com` doesn't load: the home page, and the redirects from old Bartenders links. The game subdomains have their own mappings and aren't affected. The only ways around it are keeping the domain on the Bartenders service, or putting a load balancer in front of every service (about $18 a month). Neither seemed worth it for a one-off gap, so apply at a quiet time.
 
 Check progress on the certificate with:
 

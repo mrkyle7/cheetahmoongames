@@ -46,10 +46,10 @@ variable "bartenders_subdomain" {
   description = "Subdomain that serves Bartenders of Corfu"
 }
 
-variable "ci_service_account" {
+variable "terraform_service_account" {
   type        = string
   default     = "github-terraform@bartenders-464918.iam.gserviceaccount.com"
-  description = "Service account GitHub Actions uses to deploy every game and to apply this terraform."
+  description = "Service account this repo's workflow applies the terraform as. Only this repo may use it; games deploy with their own accounts."
 }
 
 variable "site_github_repo" {

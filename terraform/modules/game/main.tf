@@ -5,32 +5,55 @@ locals {
   host = "${var.subdomain}.${var.domain}"
 }
 
+# --- Running ------------------------------------------------------------------
+
 resource "google_service_account" "run" {
   project      = var.project
   account_id   = "${var.name}-run"
   display_name = "Cloud Run service account for ${var.name}"
 }
 
-# The CI account deploys revisions that run as this account.
-resource "google_service_account_iam_member" "ci_acts_as_run" {
-  service_account_id = google_service_account.run.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.ci_service_account}"
+# The game's own image registry, so no other game can overwrite its images.
+resource "google_artifact_registry_repository" "images" {
+  project       = var.project
+  location      = var.region
+  repository_id = var.name
+  description   = "Docker images for ${var.name}"
+  format        = "DOCKER"
+
+  cleanup_policies {
+    id     = "delete-untagged"
+    action = "DELETE"
+    condition {
+      tag_state  = "UNTAGGED"
+      older_than = "604800s" # 7 days
+    }
+  }
+
+  cleanup_policies {
+    id     = "delete-old-tagged"
+    action = "DELETE"
+    condition {
+      tag_state  = "TAGGED"
+      older_than = "2592000s" # 30 days
+    }
+  }
+
+  cleanup_policies {
+    id     = "keep-recent"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 10
+    }
+  }
 }
 
 resource "google_artifact_registry_repository_iam_member" "run_pulls_images" {
   project    = var.project
-  location   = var.registry_location
-  repository = var.registry_name
+  location   = google_artifact_registry_repository.images.location
+  repository = google_artifact_registry_repository.images.name
   role       = "roles/artifactregistry.reader"
   member     = "serviceAccount:${google_service_account.run.email}"
-}
-
-# The game's repo may deploy through the CI account.
-resource "google_service_account_iam_member" "github_deploy" {
-  service_account_id = "projects/${var.project}/serviceAccounts/${var.ci_service_account}"
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${var.github_pool_name}/attribute.repository/${var.github_repo}"
 }
 
 resource "google_cloud_run_v2_service" "this" {
@@ -89,7 +112,6 @@ resource "google_cloud_run_v2_service" "this" {
 
   depends_on = [
     google_artifact_registry_repository_iam_member.run_pulls_images,
-    google_service_account_iam_member.ci_acts_as_run,
   ]
 }
 
@@ -123,4 +145,51 @@ resource "google_dns_record_set" "cname" {
   ttl          = 300
   managed_zone = var.dns_zone
   rrdatas      = ["ghs.googlehosted.com."]
+}
+
+# --- Deploying: the game's own repo only ----------------------------------------
+#
+# The game's workflow acts as this account. It can push to this game's
+# registry and deploy new revisions of this game's service, nothing else.
+
+resource "google_service_account" "deploy" {
+  project      = var.project
+  account_id   = "${var.name}-deploy"
+  display_name = "GitHub Actions deploys for ${var.name}"
+}
+
+resource "google_service_account_iam_member" "github_deploy" {
+  service_account_id = google_service_account.deploy.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${var.github_pool_name}/attribute.repository/${var.github_repo}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "deploy_developer" {
+  project  = google_cloud_run_v2_service.this.project
+  location = google_cloud_run_v2_service.this.location
+  name     = google_cloud_run_v2_service.this.name
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.deploy.email}"
+}
+
+# Read-only, so the workflow can list revisions when rolling back.
+resource "google_project_iam_member" "deploy_run_viewer" {
+  project = var.project
+  role    = "roles/run.viewer"
+  member  = "serviceAccount:${google_service_account.deploy.email}"
+}
+
+# New revisions run as the game's runtime account.
+resource "google_service_account_iam_member" "deploy_acts_as_run" {
+  service_account_id = google_service_account.run.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.deploy.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "deploy_pushes_images" {
+  project    = var.project
+  location   = google_artifact_registry_repository.images.location
+  repository = google_artifact_registry_repository.images.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.deploy.email}"
 }

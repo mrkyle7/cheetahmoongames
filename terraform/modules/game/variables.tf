@@ -1,6 +1,6 @@
 variable "name" {
   type        = string
-  description = "Cloud Run service name, also the Docker image name in docker-us (e.g. the-boxer)."
+  description = "Cloud Run service, image registry and image name (e.g. the-boxer). At most 23 characters: accounts are named <name>-deploy."
 }
 
 variable "subdomain" {
@@ -82,19 +82,7 @@ variable "dns_zone" {
   type = string
 }
 
-variable "ci_service_account" {
-  type = string
-}
-
 variable "github_pool_name" {
   type        = string
   description = "Full name of the Workload Identity pool (projects/.../workloadIdentityPools/github-pool)."
-}
-
-variable "registry_location" {
-  type = string
-}
-
-variable "registry_name" {
-  type = string
 }

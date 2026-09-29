@@ -21,12 +21,13 @@ permissions:
 env:
   PROJECT_ID: bartenders-464918
   REGION: us-east1
-  REPOSITORY: docker-us
+  REPOSITORY: cheetahmoongames
   IMAGE_NAME: cheetahmoongames
   SERVICE_NAME: cheetahmoongames
   TERRAFORM_VERSION: 1.14.5
   WIF_PROVIDER: projects/987774112216/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-  CI_SERVICE_ACCOUNT: github-terraform@bartenders-464918.iam.gserviceaccount.com
+  # Only this repo can act as github-terraform (see terraform/github.tf).
+  SERVICE_ACCOUNT: github-terraform@bartenders-464918.iam.gserviceaccount.com
 
 jobs:
   site-test:
@@ -87,7 +88,7 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.CI_SERVICE_ACCOUNT }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -130,7 +131,7 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.CI_SERVICE_ACCOUNT }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -183,7 +184,7 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.CI_SERVICE_ACCOUNT }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - uses: google-github-actions/setup-gcloud@v2
 

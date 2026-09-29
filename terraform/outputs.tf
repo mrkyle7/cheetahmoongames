@@ -14,6 +14,17 @@ output "cloud_run_service_account" {
 }
 
 output "games" {
-  value       = { for key, game in module.game : key => game.url }
-  description = "Public URL of each game in games.tf"
+  value = {
+    for key, game in module.game : key => {
+      url                    = game.url
+      deploy_service_account = game.deploy_service_account
+      image_repository       = game.image_repository
+    }
+  }
+  description = "Each game in games.tf: its URL, and what its workflow deploys as and pushes to"
+}
+
+output "bartenders_deploy_service_account" {
+  value       = google_service_account.bartenders_deploy.email
+  description = "Account the Bartenders repo's workflow deploys as"
 }

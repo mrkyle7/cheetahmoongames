@@ -9,16 +9,37 @@ resource "google_service_account" "site_run" {
   display_name = "Cloud Run service account for the cheetahmoongames.com home page"
 }
 
-resource "google_service_account_iam_member" "ci_impersonates_site_run_sa" {
-  service_account_id = google_service_account.site_run.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.ci_service_account}"
+# The home page's own image registry. This repo's workflow pushes to it as
+# github-terraform.
+resource "google_artifact_registry_repository" "site_images" {
+  project       = var.project_name
+  location      = var.region
+  repository_id = "cheetahmoongames"
+  description   = "Docker images for the cheetahmoongames.com home page"
+  format        = "DOCKER"
+
+  cleanup_policies {
+    id     = "delete-untagged"
+    action = "DELETE"
+    condition {
+      tag_state  = "UNTAGGED"
+      older_than = "604800s" # 7 days
+    }
+  }
+
+  cleanup_policies {
+    id     = "keep-recent"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 10
+    }
+  }
 }
 
 resource "google_artifact_registry_repository_iam_member" "site_run_pulls_images" {
   project    = var.project_name
-  location   = google_artifact_registry_repository.docker_us.location
-  repository = google_artifact_registry_repository.docker_us.name
+  location   = google_artifact_registry_repository.site_images.location
+  repository = google_artifact_registry_repository.site_images.name
   role       = "roles/artifactregistry.reader"
   member     = "serviceAccount:${google_service_account.site_run.email}"
 }
