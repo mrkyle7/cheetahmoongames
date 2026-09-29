@@ -139,13 +139,15 @@ Almost everything is in Terraform. These few things aren't, because Terraform ne
        --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/siteverification
      TOKEN=$(gcloud auth application-default print-access-token)
      URL="https://www.googleapis.com/siteVerification/v1/webResource/dns%3A%2F%2Fcheetahmoongames.com"
-     curl -s -H "Authorization: Bearer $TOKEN" "$URL"
+     # User credentials bill API calls to a "quota project": name this one.
+     curl -s -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: bartenders-464918" "$URL"
      ```
 
   3. Write the owners back with `github-terraform` added. The call replaces the whole list, so **keep every existing owner** from step 2:
 
      ```sh
-     curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" "$URL" -d '{
+     curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: bartenders-464918" \
+       -H "Content-Type: application/json" "$URL" -d '{
        "site": { "type": "INET_DOMAIN", "identifier": "cheetahmoongames.com" },
        "owners": [
          "EXISTING-OWNER@example.com",
