@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cheetah Moon Games</title>
+    <meta name="description" content="Games from Cheetah Moon: Bartenders of Corfu and The Boxer.">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <style>
+        :root {
+            --bg: #0d0f1c;
+            --bg-2: #161a2e;
+            --card: #1b2038;
+            --line: #2c3354;
+            --text: #f1f2f8;
+            --muted: #a6acc8;
+            --moon: #f3d36b;
+            --bartenders: #d9822b;
+            --boxer: #e2464b;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body { margin: 0; min-height: 100%; }
+
+        body {
+            background:
+                radial-gradient(circle at 82% 8%, rgba(243, 211, 107, 0.16), transparent 38%),
+                linear-gradient(180deg, var(--bg), var(--bg-2));
+            color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        main {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 56px 16px 40px;
+        }
+
+        header { display: flex; align-items: center; gap: 18px; margin-bottom: 44px; }
+
+        .moon {
+            flex: 0 0 auto;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #fff4c4, var(--moon) 60%, #c9a43d);
+            box-shadow: 0 0 40px rgba(243, 211, 107, 0.45);
+            position: relative;
+        }
+
+        /* Cheetah spots on the moon */
+        .moon span {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(90, 60, 10, 0.55);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(32px, 7vw, 52px);
+            line-height: 1.05;
+            letter-spacing: -0.01em;
+        }
+
+        .lede { margin: 6px 0 0; color: var(--muted); font-size: 18px; }
+
+        .games {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 22px;
+        }
+
+        .game {
+            display: flex;
+            flex-direction: column;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow: hidden;
+            color: inherit;
+            text-decoration: none;
+            transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .game:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); }
+        .game:focus-visible { outline: 3px solid var(--moon); outline-offset: 3px; }
+        .game.bartenders:hover { border-color: var(--bartenders); }
+        .game.boxer:hover { border-color: var(--boxer); }
+
+        .art {
+            height: 210px;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+        }
+
+        .bartenders .art { background: #2a1a0d; }
+        .bartenders .art img { width: 100%; height: 100%; object-fit: cover; }
+        .boxer .art { background: linear-gradient(180deg, #111726, #1d4a66); }
+        .boxer .art svg { width: 62%; height: auto; }
+
+        .body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
+        .body h2 { margin: 0 0 6px; font-size: 24px; }
+        .body p { margin: 0 0 18px; color: var(--muted); }
+
+        .play {
+            margin-top: auto;
+            align-self: flex-start;
+            font-weight: 700;
+            padding: 10px 18px;
+            border-radius: 6px;
+            color: #fff;
+        }
+
+        /* Both button colours keep at least 4.5:1 contrast with white text. */
+        .bartenders .play { background: #a4561a; }
+        .boxer .play { background: #b8262c; }
+
+        footer { margin-top: 44px; color: var(--muted); font-size: 14px; }
+
+        @media (max-width: 480px) {
+            main { padding-top: 32px; }
+            header { margin-bottom: 28px; }
+            .moon { width: 48px; height: 48px; }
+            .art { height: 170px; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <div class="moon" aria-hidden="true">
+                <span style="width:10px;height:8px;left:18px;top:14px"></span>
+                <span style="width:7px;height:7px;left:38px;top:22px"></span>
+                <span style="width:9px;height:7px;left:24px;top:38px"></span>
+                <span style="width:6px;height:6px;left:44px;top:42px"></span>
+            </div>
+            <div>
+                <h1>Cheetah Moon Games</h1>
+                <p class="lede">Pick a game and play with friends in your browser.</p>
+            </div>
+        </header>
+
+        <section class="games" aria-label="Games">
+            <a class="game bartenders" href="https://bartenders.cheetahmoongames.com/"
+               aria-label="Play Bartenders of Corfu">
+                <div class="art">
+                    <img src="/assets/bartenders.jpg" alt="" width="640" height="640">
+                </div>
+                <div class="body">
+                    <h2>Bartenders of Corfu</h2>
+                    <p>Mix cocktails, sell drinks and try to stay standing. A turn-based game for 2 to 4 players, with bots to fill the bar.</p>
+                    <span class="play">Play Bartenders</span>
+                </div>
+            </a>
+
+            <a class="game boxer" href="https://boxer.cheetahmoongames.com/"
+               aria-label="Play The Boxer">
+                <div class="art">
+                    <svg viewBox="0 0 200 150" aria-hidden="true">
+                        <rect x="10" y="118" width="180" height="10" rx="3" fill="#2a3a55"/>
+                        <path d="M60 58c0-20 16-34 38-34h14c22 0 34 16 34 36v22c0 24-18 40-42 40h-10c-20 0-34-14-34-34z" fill="#e2464b"/>
+                        <path d="M60 64c-10 0-18 8-18 18s8 18 18 18" fill="none" stroke="#b8262c" stroke-width="12" stroke-linecap="round"/>
+                        <path d="M78 40c10-8 26-10 40-4" fill="none" stroke="#ff8a8d" stroke-width="6" stroke-linecap="round"/>
+                        <rect x="66" y="104" width="68" height="20" rx="4" fill="#f2f2f2"/>
+                        <rect x="66" y="110" width="68" height="4" fill="#2f76e8"/>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>The Boxer</h2>
+                    <p>A live two-player fight. Punch, kick, block and read your opponent: head or tummy? Best of three rounds.</p>
+                    <span class="play">Play The Boxer</span>
+                </div>
+            </a>
+        </section>
+
+        <footer>Cheetah Moon Games</footer>
+    </main>
+</body>
+</html>

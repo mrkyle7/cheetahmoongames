@@ -1,0 +1,100 @@
+variable "name" {
+  type        = string
+  description = "Cloud Run service name, also the Docker image name in docker-us (e.g. the-boxer)."
+}
+
+variable "subdomain" {
+  type        = string
+  description = "Serves the game at <subdomain>.<domain>."
+}
+
+variable "github_repo" {
+  type        = string
+  description = "owner/repo whose GitHub Actions deploy this game."
+}
+
+# --- Runtime settings (all optional) -------------------------------------------
+
+variable "min_instances" {
+  type     = number
+  default  = 0
+  nullable = false
+}
+
+variable "max_instances" {
+  type     = number
+  default  = 3
+  nullable = false
+}
+
+variable "timeout" {
+  type        = string
+  default     = null
+  description = "Longest a request may run, e.g. \"3600s\" for WebSocket games. Cloud Run's default is 300s."
+}
+
+variable "session_affinity" {
+  type     = bool
+  default  = false
+  nullable = false
+}
+
+variable "concurrency" {
+  type        = number
+  default     = null
+  description = "Requests (or WebSocket connections) one instance handles at once. Cloud Run's default is 80."
+}
+
+variable "cpu" {
+  type     = string
+  default  = "1"
+  nullable = false
+}
+
+variable "memory" {
+  type     = string
+  default  = "512Mi"
+  nullable = false
+}
+
+variable "env" {
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  description = "Plain environment variables for the container."
+}
+
+# --- Wiring from the root module ------------------------------------------------
+
+variable "project" {
+  type = string
+}
+
+variable "region" {
+  type = string
+}
+
+variable "domain" {
+  type = string
+}
+
+variable "dns_zone" {
+  type = string
+}
+
+variable "ci_service_account" {
+  type = string
+}
+
+variable "github_pool_name" {
+  type        = string
+  description = "Full name of the Workload Identity pool (projects/.../workloadIdentityPools/github-pool)."
+}
+
+variable "registry_location" {
+  type = string
+}
+
+variable "registry_name" {
+  type = string
+}
