@@ -55,6 +55,7 @@ site/                  the home page: a small Node server with no dependencies
   public/index.html    the page itself, one card per game
   public/login.html    sign in or create an account, for every game
   server.js            serves the pages; redirects Bartenders' old URLs on this domain
+  public/reset-password.html  choose a new password from an emailed link
   account.js           /api/account/*: sign-in, passed on to Bartenders
 terraform/
   games.tf             the list of games (edit this to add one)
@@ -90,7 +91,7 @@ npm test
 BARTENDERS_URL=https://bartenders.cheetahmoongames.com npm start   # http://localhost:8080
 ```
 
-**Signing in.** `/login` is where players sign in or create an account, for every game. `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
+**Signing in.** `/login` is where players sign in, create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
 
 Besides that, the server handles traffic for Bartenders, which used to live on this domain:
 
@@ -161,3 +162,20 @@ Almost everything is in Terraform. These few things aren't, because Terraform ne
      ```
 
   In a browser instead, signed in as an owning account: in [Search Console](https://search.google.com/search-console), add a **Domain** property for `cheetahmoongames.com`. The existing DNS verification should confirm it at once. Then go to Settings → Users and permissions → ⋮ → Manage property owners → **Add an owner**.
+
+## Password reset emails (Brevo)
+
+"Forgot your password?" on `/login` emails a one-time link, valid for an hour. Bartenders sends it through [Brevo](https://www.brevo.com)'s API, from `noreply@cheetahmoongames.com` (`email_from` in `terraform/variables.tf`). Until the steps below are done, the page still works but no email goes out; Bartenders logs `BREVO_API_KEY not set`.
+
+1. **Let Brevo send as cheetahmoongames.com.** In Brevo: Senders, Domains & Dedicated IPs → Domains → **Add a domain** → `cheetahmoongames.com`. Choose to add the DNS records yourself. Brevo lists a few TXT/CNAME records: a `brevo-code` TXT on the domain itself, DKIM, and DMARC. Add each to the Cloud DNS zone:
+
+   ```sh
+   gcloud dns record-sets create NAME --type=TYPE --ttl=300 --rrdatas='VALUE' \
+     --zone=cheetahmoongames-com --project=bartenders-464918
+   ```
+
+   `NAME` ends with a dot, e.g. `cheetahmoongames.com.` or `brevo1._domainkey.cheetahmoongames.com.`. TXT values go in quotes inside the single quotes: `--rrdatas='"brevo-code:abc123"'`. If the domain already has a TXT record (`gcloud dns record-sets list --zone=cheetahmoongames-com --project=bartenders-464918`), add the new value to it with `record-sets update`, listing the old values too. Then press **Authenticate** in Brevo. (Or send the records to Claude to add them to Terraform.)
+2. **Make an API key.** Brevo → SMTP & API → API keys → **Generate a new API key**.
+3. **Give it to Bartenders.** In mrkyle7/bartenders-of-corfu: Settings → Secrets and variables → Actions → New repository secret, named `BREVO_API_KEY`. The next deploy of Bartenders copies it into the `brevo-api-key` secret in Secret Manager and starts a revision that uses it. To deploy without a code change, re-run its latest CI/CD run on `main`.
+
+To change the key, update the GitHub secret and deploy Bartenders again. Check it works by asking for a reset link for your own account.

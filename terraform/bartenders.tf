@@ -2,7 +2,8 @@
 # Bartenders of Corfu — bartenders.cheetahmoongames.com
 # Deployed by mrkyle7/bartenders-of-corfu as bartenders-deploy
 # (image: docker-us/bartenders).
-# Supabase is external; its URL/key and the VAPID keys live in Secret Manager.
+# Supabase is external; its URL/key, the VAPID keys and the Brevo API key
+# live in Secret Manager.
 # ---------------------------------------------------------------------------
 
 resource "google_service_account" "bartenders_run" {
@@ -47,6 +48,36 @@ resource "google_secret_manager_secret" "supabase_key" {
     auto {}
   }
   depends_on = [google_project_service.secretmanager]
+}
+
+# Brevo API key, for sending password reset emails. Its value comes from the
+# BREVO_API_KEY GitHub secret in mrkyle7/bartenders-of-corfu, which that
+# repo's deploy copies here. Until then the "not-set" placeholder below is the
+# latest version: Cloud Run can't start a revision whose secret has no
+# versions, and the app treats the placeholder as "don't send email".
+resource "google_secret_manager_secret" "brevo_api_key" {
+  project   = var.project_name
+  secret_id = "brevo-api-key"
+  replication {
+    auto {}
+  }
+  depends_on = [google_project_service.secretmanager]
+}
+
+# Write-only, so Terraform never reads a value back: the plan account, which
+# can't read secret values, can still plan. The real key is added as a newer
+# version outside Terraform.
+resource "google_secret_manager_secret_version" "brevo_api_key_placeholder" {
+  secret                 = google_secret_manager_secret.brevo_api_key.id
+  secret_data_wo         = "not-set"
+  secret_data_wo_version = 1
+}
+
+resource "google_secret_manager_secret_iam_member" "run_reads_brevo" {
+  project   = var.project_name
+  secret_id = google_secret_manager_secret.brevo_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.bartenders_run.email}"
 }
 
 # Cloud Run reads secrets at container start
@@ -175,6 +206,32 @@ resource "google_cloud_run_v2_service" "bartenders" {
         name  = "LOGIN_URL"
         value = "https://${var.domain_name}/login"
       }
+
+      # Password reset emails, sent through Brevo, link to the home page.
+      env {
+        name = "BREVO_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.brevo_api_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name  = "EMAIL_FROM"
+        value = var.email_from
+      }
+
+      env {
+        name  = "EMAIL_FROM_NAME"
+        value = var.email_from_name
+      }
+
+      env {
+        name  = "PASSWORD_RESET_URL"
+        value = "https://${var.domain_name}/reset-password"
+      }
     }
   }
 
@@ -193,6 +250,8 @@ resource "google_cloud_run_v2_service" "bartenders" {
     google_secret_manager_secret_iam_member.run_reads_key,
     google_secret_manager_secret_iam_member.run_reads_vapid_private,
     google_secret_manager_secret_iam_member.run_reads_vapid_public,
+    google_secret_manager_secret_iam_member.run_reads_brevo,
+    google_secret_manager_secret_version.brevo_api_key_placeholder,
     google_artifact_registry_repository_iam_member.run_pulls_images,
   ]
 }
@@ -209,7 +268,7 @@ resource "google_cloud_run_service_iam_member" "public" {
 #
 # The Bartenders repo's workflow acts as this account. It can push images to
 # docker-us, deploy new revisions of the bartenders service (nothing else),
-# and read and update the two Supabase secrets it syncs on each deploy.
+# and read and update the secrets it syncs on each deploy (Supabase, Brevo).
 
 resource "google_service_account" "bartenders_deploy" {
   project      = var.project_name
@@ -259,10 +318,12 @@ resource "google_artifact_registry_repository_iam_member" "bartenders_deploy_pus
 # Reads the current value (to diff) and adds a new version when it changed.
 resource "google_secret_manager_secret_iam_member" "bartenders_deploy_secret_access" {
   for_each = {
-    url_read  = { secret = google_secret_manager_secret.supabase_url.secret_id, role = "roles/secretmanager.secretAccessor" }
-    key_read  = { secret = google_secret_manager_secret.supabase_key.secret_id, role = "roles/secretmanager.secretAccessor" }
-    url_write = { secret = google_secret_manager_secret.supabase_url.secret_id, role = "roles/secretmanager.secretVersionAdder" }
-    key_write = { secret = google_secret_manager_secret.supabase_key.secret_id, role = "roles/secretmanager.secretVersionAdder" }
+    url_read    = { secret = google_secret_manager_secret.supabase_url.secret_id, role = "roles/secretmanager.secretAccessor" }
+    key_read    = { secret = google_secret_manager_secret.supabase_key.secret_id, role = "roles/secretmanager.secretAccessor" }
+    url_write   = { secret = google_secret_manager_secret.supabase_url.secret_id, role = "roles/secretmanager.secretVersionAdder" }
+    key_write   = { secret = google_secret_manager_secret.supabase_key.secret_id, role = "roles/secretmanager.secretVersionAdder" }
+    brevo_read  = { secret = google_secret_manager_secret.brevo_api_key.secret_id, role = "roles/secretmanager.secretAccessor" }
+    brevo_write = { secret = google_secret_manager_secret.brevo_api_key.secret_id, role = "roles/secretmanager.secretVersionAdder" }
   }
   project   = var.project_name
   secret_id = each.value.secret
