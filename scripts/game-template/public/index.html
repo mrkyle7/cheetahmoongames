@@ -22,7 +22,22 @@
   <main>
     <h1>__TITLE__</h1>
     <p>Coming soon to Cheetah Moon Games.</p>
+    <p id="player" aria-live="polite"></p>
     <a href="https://cheetahmoongames.com/">More games</a>
   </main>
+  <script>
+    // Every game shares one sign-in, at cheetahmoongames.com.
+    fetch('/api/me').then((r) => r.json()).then((me) => {
+      const el = document.getElementById('player');
+      if (me.signedIn) {
+        el.textContent = 'Signed in as ' + me.name;
+      } else {
+        const a = document.createElement('a');
+        a.href = me.loginUrl;
+        a.textContent = 'Sign in';
+        el.append(a, ' to play.');
+      }
+    }).catch(() => {});
+  </script>
 </body>
 </html>

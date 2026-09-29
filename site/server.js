@@ -3,6 +3,8 @@
 // cheetahmoongames.com — the games home page.
 //
 //   /            the home page (public/index.html)
+//   /login       sign in or create a Cheetah Moon account (public/login.html)
+//   /api/account/*  accounts, shared by every game (see account.js)
 //   /assets/*    its images
 //   /sw.js       a service worker that unregisters itself (see below)
 //   /healthz     health check
@@ -15,6 +17,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { createAccounts } = require('./account');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
@@ -93,8 +96,9 @@ function serveFile(req, res, filePath, extraHeaders) {
   });
 }
 
-function createServer(env = process.env) {
+function createServer(env = process.env, { fetchImpl } = {}) {
   const { bartendersUrl, cookieDomain } = config(env);
+  const accounts = createAccounts({ bartendersUrl, cookieDomain, fetchImpl });
 
   return http.createServer((req, res) => {
     let url;
@@ -115,6 +119,12 @@ function createServer(env = process.env) {
         ...(cookies.length ? { 'Set-Cookie': cookies } : {}),
       });
     }
+
+    if (p === '/login' && read) {
+      return serveFile(req, res, path.join(PUBLIC_DIR, 'login.html'), { 'Cache-Control': NO_CACHE });
+    }
+
+    if (accounts.handle(req, res, url, send)) return;
 
     if (p === '/sw.js' && read) {
       return send(res, 200, {

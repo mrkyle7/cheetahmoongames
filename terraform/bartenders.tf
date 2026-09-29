@@ -168,6 +168,13 @@ resource "google_cloud_run_v2_service" "bartenders" {
         name  = "COOKIE_DOMAIN"
         value = var.domain_name
       }
+
+      # Players sign in on the home page, for every game; Bartenders' /login
+      # sends them there. Bartenders still holds the accounts behind it.
+      env {
+        name  = "LOGIN_URL"
+        value = "https://${var.domain_name}/login"
+      }
     }
   }
 

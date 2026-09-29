@@ -40,7 +40,8 @@ The skeleton, from `scripts/game-template/`:
 
 | File | What it is |
 | --- | --- |
-| `server.js`, `public/index.html` | A dependency-free Node server showing a "coming soon" page. It listens on `PORT` and serves `/` and `/healthz`. |
+| `server.js`, `public/index.html` | A dependency-free Node server showing a "coming soon" page. It listens on `PORT` and serves `/`, `/healthz` and `/api/me` (who's signed in). |
+| `auth.js` | Tells the game who's playing, from the shared Cheetah Moon sign-in. See [Players and signing in](#players-and-signing-in). |
 | `test/` | Its tests (`npm test`) |
 | `Dockerfile` | The container Cloud Run runs |
 | `.github/workflows/ci-cd.yml` | Tests and a container smoke test on every push. Deploys on `main` once turned on (step 3). Every name in it is already set for the game. |
@@ -156,11 +157,30 @@ It's live when `Ready` is `True`. Until then the address won't load over HTTPS. 
 
 Open a Claude session in the game's repo. Its `CLAUDE.md` tells Claude to read this file first, and has:
 - the checklist for getting the game live, so a session can see which of the steps above are done
-- the rules the game must keep: `PORT`, serving at `/`, no local state, leaving the workflow's names alone, keeping `PAGE_MARKER` current, and not touching the `userjwt` cookie
+- the rules the game must keep: `PORT`, serving at `/`, no local state, leaving the workflow's names alone, keeping `PAGE_MARKER` current, and knowing players only through `auth.js`
+
+## Players and signing in
+
+Players have one Cheetah Moon account for every game. They sign in or create it at **https://cheetahmoongames.com/login**, and games never ask for names or passwords themselves.
+
+- **Where accounts live.** The accounts are Bartenders of Corfu's (its users table in Supabase). The home page's `/login` page and `/api/account/*` routes (`site/account.js`) pass sign-in, sign-up and sign-out on to Bartenders, server to server. Bartenders' own `/login` redirects to the home page (its `LOGIN_URL`, set in `terraform/bartenders.tf`).
+- **The cookie.** Signing in sets `userjwt` for the whole of `cheetahmoongames.com`, so the browser sends it to every game. It's a JWT signed with RS256 by Bartenders; its claims carry the account's id (`id`), name (`sub`) and expiry (`exp`, 7 days).
+- **In a game,** `auth.js` checks the cookie's signature with the public key from `https://cheetahmoongames.com/api/account/keys/<kid>` and gives you the player:
+
+  ```js
+  const { createAuth } = require('./auth');
+  const auth = createAuth();                 // reads ACCOUNTS_URL, which Terraform sets
+  const player = await auth.player(req);     // { id, name } or null; works on WebSocket upgrades too
+  if (!player) redirect(auth.loginUrl('https://snap.cheetahmoongames.com/'));  // back here after
+  ```
+
+  Key players' games and records by `player.id`, not their name: names are for showing. Names can have spaces, so escape them when you put them in HTML.
+- **Signing out** happens on the home page (or in Bartenders) and clears the cookie everywhere. A token that was copied before signing out stays valid in games until it expires; Bartenders also checks its own list of sign-outs.
+- **Rules:** don't log the cookie, store it or send it anywhere but `auth.js`, and don't build your own sign-in. The browser page can't read the cookie (it's `HttpOnly`); ask your own server, e.g. the skeleton's `/api/me`.
+- **Running locally:** cookies on `localhost` are shared between ports. Run Bartenders and the home page locally (`BARTENDERS_URL=http://localhost:8000 npm start` in `site/`), sign in at `http://localhost:8080/login`, and start the game with `ACCOUNTS_URL=http://localhost:8080`. Tests don't need any of that: sign tokens with a throwaway key and pass `fetchKey` to `createAuth` (see the skeleton's `test/auth.test.js`).
 
 ## Things to know
 
-- **Login cookie.** Bartenders' login cookie is shared across `cheetahmoongames.com`, so browsers send it to every game's subdomain. Don't log it, store it or pass it on. If a game ever needs to know who a player is, ask Bartenders' API for it instead of reading the token.
 - **Games that need secrets or a database.** The `game` module only covers plain settings. For Secret Manager secrets, a database or other extra infrastructure, add them in a file of their own, as `terraform/bartenders.tf` does for Bartenders. The game reads them as `<name>-run@bartenders-464918.iam.gserviceaccount.com`; grant that account access. If the game's workflow also needs to change them, grant `<name>-deploy` access to just those secrets.
 - **Removing a game.** Delete its entry in `games.tf` and its card. The plan will delete its service, subdomain and DNS record, so the merge run refuses to apply it. Run the workflow by hand (Actions → Deploy → Run workflow) with **allow_destroy** ticked. This also deletes the game's image registry and every image in it. Archive or delete its repo separately.
 - **Renaming a game** (`name` or `subdomain`) replaces its service or domain mapping, which also needs **allow_destroy**. A new subdomain gets a new certificate, so expect a gap while it's issued.

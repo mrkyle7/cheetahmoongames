@@ -28,9 +28,12 @@ locals {
       github_repo = "mrkyle7/bezique"
 
       # Games live in memory, so both players must reach the same instance.
-      # The pages poll with short requests, so the default timeout and
-      # concurrency are fine.
+      # Each open page keeps a server-sent events stream open for updates:
+      # let one last an hour (the page reconnects after) and let one
+      # instance hold many.
       max_instances = 1
+      timeout       = "3600s"
+      concurrency   = 1000
     }
   }
 }

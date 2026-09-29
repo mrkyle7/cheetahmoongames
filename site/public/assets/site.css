@@ -1,0 +1,81 @@
+/* Shared by every page on cheetahmoongames.com. */
+:root {
+    --bg: #0d0f1c;
+    --bg-2: #161a2e;
+    --card: #1b2038;
+    --line: #2c3354;
+    --text: #f1f2f8;
+    --muted: #a6acc8;
+    --moon: #f3d36b;
+    --danger: #ff6b6b;
+    --bartenders: #d9822b;
+    --boxer: #e2464b;
+    --bezique: #3fae74;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; }
+
+body {
+    background:
+        radial-gradient(circle at 82% 8%, rgba(243, 211, 107, 0.16), transparent 38%),
+        linear-gradient(180deg, var(--bg), var(--bg-2));
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+/* The moon, with cheetah spots. */
+.moon {
+    flex: 0 0 auto;
+    display: inline-block;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff4c4, var(--moon) 60%, #c9a43d);
+    box-shadow: 0 0 40px rgba(243, 211, 107, 0.45);
+    position: relative;
+}
+
+.moon span {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(90, 60, 10, 0.55);
+}
+.moon span:nth-child(1) { width: 16%; height: 12%; left: 28%; top: 22%; }
+.moon span:nth-child(2) { width: 11%; height: 11%; left: 59%; top: 34%; }
+.moon span:nth-child(3) { width: 14%; height: 11%; left: 38%; top: 59%; }
+.moon span:nth-child(4) { width: 9%; height: 9%; left: 69%; top: 66%; }
+
+/* Who's signed in, top right of every page. */
+.account {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 14px;
+    min-height: 36px;
+    font-size: 15px;
+    color: var(--muted);
+}
+.account strong { color: var(--text); font-weight: 600; }
+.account a, .account button {
+    font: inherit;
+    color: var(--moon);
+    background: none;
+    border: 0;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+.account a:focus-visible, .account button:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
+.account .button {
+    text-decoration: none;
+    font-weight: 700;
+    color: #1a1405;
+    background: var(--moon);
+    padding: 7px 14px;
+    border-radius: 6px;
+}

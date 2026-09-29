@@ -27,7 +27,8 @@ Check what's done before starting. Ask the user if unsure, and update these boxe
 - **Keep the workflow's `env` block as generated.** `REPOSITORY`, `IMAGE_NAME`, `SERVICE_NAME` and `SERVICE_ACCOUNT` must match the `__NAME__` entry in games.tf. The deploy account can only push to its own registry and deploy its own service.
 - **Keep `PAGE_MARKER` current.** It's the text the container and deploy smoke tests look for on `/`. If the page stops showing "__TITLE__", update it in `.github/workflows/ci-cd.yml`.
 - **No keys or secrets for Google Cloud in this repo.** GitHub Actions sign in without them. Only jobs on `main` of this repo can deploy; Google Cloud enforces that, not the workflow file.
-- **Don't read, store or forward the `userjwt` cookie.** It's Bartenders of Corfu's login, and browsers send it to every cheetahmoongames.com subdomain.
+- **Players are Cheetah Moon accounts.** They sign in once at `https://cheetahmoongames.com/login`, and `auth.js` tells the server who they are (`await auth.player(req)` gives `{ id, name }` or null). Don't build a sign-in, or ask for names or passwords, in the game. Key games and records by `id`; `name` is for display and can contain spaces. See "Players and signing in" in ADDING_A_GAME.md.
+- **Don't log, store or forward the `userjwt` cookie.** Only `auth.js` reads it. Keep `auth.js` as it is in the skeleton; fixes to it go in mrkyle7/cheetahmoongames first.
 - **Instances:** by default up to 3 can run, and players may land on different ones. If players must meet on the same server, for example rooms kept in memory, set `max_instances = 1` (and, for WebSockets, `timeout`, `concurrency` and `session_affinity`) in the games.tf entry. The Boxer does this.
 
 ## Commands
