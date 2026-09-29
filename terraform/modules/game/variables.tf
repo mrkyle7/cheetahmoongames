@@ -71,6 +71,23 @@ variable "env" {
   description = "Plain environment variables for the container."
 }
 
+variable "secrets" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = <<-EOT
+    Environment variables whose values are secret, e.g. ["SUPABASE_URL", "SUPABASE_KEY"].
+    Each gets a Secret Manager secret named <name>-<variable in lower case with dashes>
+    (bezique-supabase-url), which the game's deploy workflow fills in. See
+    "Games that need secrets or a database" in ADDING_A_GAME.md.
+  EOT
+
+  validation {
+    condition     = alltrue([for s in var.secrets : can(regex("^[A-Z][A-Z0-9_]*$", s))])
+    error_message = "Secrets are environment variable names: capitals, digits and underscores."
+  }
+}
+
 # --- Wiring from the root module ------------------------------------------------
 
 variable "project" {

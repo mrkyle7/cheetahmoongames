@@ -34,6 +34,10 @@ locals {
       max_instances = 1
       timeout       = "3600s"
       concurrency   = 1000
+
+      # Games are saved in the bezique Supabase project. The workflow in
+      # mrkyle7/bezique fills these in from its GitHub secrets.
+      secrets = ["SUPABASE_URL", "SUPABASE_KEY"]
     }
   }
 }
@@ -56,6 +60,7 @@ module "game" {
   cpu              = try(each.value.cpu, null)
   memory           = try(each.value.memory, null)
   env              = try(each.value.env, null)
+  secrets          = try(each.value.secrets, null)
 
   project          = var.project_name
   region           = var.region
@@ -63,5 +68,5 @@ module "game" {
   dns_zone         = var.dns_zone
   github_pool_name = google_iam_workload_identity_pool.github.name
 
-  depends_on = [google_project_service.cloudrun]
+  depends_on = [google_project_service.cloudrun, google_project_service.secretmanager]
 }

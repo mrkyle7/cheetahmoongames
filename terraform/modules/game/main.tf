@@ -7,6 +7,9 @@ locals {
   # Every game can tell who's playing from the shared login (auth.js in the
   # game-template reads ACCOUNTS_URL). A game's own env can override it.
   env = merge({ ACCOUNTS_URL = "https://${var.domain}" }, var.env)
+
+  # SUPABASE_KEY → <name>-supabase-key
+  secret_ids = { for env in var.secrets : env => "${var.name}-${lower(replace(env, "_", "-"))}" }
 }
 
 # --- Running ------------------------------------------------------------------
@@ -103,6 +106,19 @@ resource "google_cloud_run_v2_service" "this" {
           value = env.value
         }
       }
+
+      dynamic "env" {
+        for_each = local.secret_ids
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.this[env.key].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
     }
   }
 
@@ -116,7 +132,56 @@ resource "google_cloud_run_v2_service" "this" {
 
   depends_on = [
     google_artifact_registry_repository_iam_member.run_pulls_images,
+    google_secret_manager_secret_version.placeholder,
+    google_secret_manager_secret_iam_member.run_reads,
   ]
+}
+
+# --- Secrets ------------------------------------------------------------------
+#
+# The game's workflow fills these in from its GitHub secrets on each deploy.
+# Until then each holds a "not-set" placeholder: Cloud Run can't start a
+# revision whose secret has no versions, and the game treats the placeholder
+# as not configured. The placeholder is write-only, so Terraform never reads
+# it back and the read-only plan account can still plan.
+
+resource "google_secret_manager_secret" "this" {
+  for_each  = local.secret_ids
+  project   = var.project
+  secret_id = each.value
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "placeholder" {
+  for_each               = local.secret_ids
+  secret                 = google_secret_manager_secret.this[each.key].id
+  secret_data_wo         = "not-set"
+  secret_data_wo_version = 1
+}
+
+resource "google_secret_manager_secret_iam_member" "run_reads" {
+  for_each  = local.secret_ids
+  project   = var.project
+  secret_id = google_secret_manager_secret.this[each.key].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.run.email}"
+}
+
+# The deploy workflow reads each secret (to see if it changed) and adds new
+# versions, for these secrets only.
+resource "google_secret_manager_secret_iam_member" "deploy_syncs" {
+  for_each = merge([
+    for env in var.secrets : {
+      "${env}/read"  = { env = env, role = "roles/secretmanager.secretAccessor" }
+      "${env}/write" = { env = env, role = "roles/secretmanager.secretVersionAdder" }
+    }
+  ]...)
+  project   = var.project
+  secret_id = google_secret_manager_secret.this[each.value.env].secret_id
+  role      = each.value.role
+  member    = "serviceAccount:${google_service_account.deploy.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "public" {
