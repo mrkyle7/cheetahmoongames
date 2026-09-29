@@ -198,7 +198,7 @@ resource "google_cloud_run_service_iam_member" "public" {
   member   = "allUsers"
 }
 
-# --- Deploying: mrkyle7/bartenders-of-corfu only ------------------------------
+# --- Deploying: mrkyle7/bartenders-of-corfu's main branch only ---------------
 #
 # The Bartenders repo's workflow acts as this account. It can push images to
 # docker-us, deploy new revisions of the bartenders service (nothing else),
@@ -210,10 +210,13 @@ resource "google_service_account" "bartenders_deploy" {
   display_name = "GitHub Actions deploys for bartenders"
 }
 
+# Only jobs running on the deploy branch may act as it, checked against
+# GitHub's signed token, so a pull request that edits the workflow can't.
 resource "google_service_account_iam_member" "github_deploy_bartenders" {
+  for_each           = toset(var.bartenders_deploy_branches)
   service_account_id = google_service_account.bartenders_deploy.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.bartenders_github_repo}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository_ref/${var.bartenders_github_repo}@refs/heads/${each.value}"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "bartenders_deploy_developer" {

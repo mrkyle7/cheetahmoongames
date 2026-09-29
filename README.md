@@ -18,22 +18,23 @@ GitHub Actions sign in to Google Cloud without keys, through Workload Identity F
 | --- | --- | --- |
 | `mrkyle7/cheetahmoongames`, **default branch only** | `github-terraform` | Apply the Terraform: IAM, service accounts, sign-in, DNS, secrets, every service. Also deploys the home page. |
 | `mrkyle7/cheetahmoongames`, pull requests and other branches | `github-terraform-plan` | Read only: the project's configuration and IAM (not secret values) and the Terraform state, enough to show a plan |
-| `mrkyle7/bartenders-of-corfu` | `bartenders-deploy` | Push to the `docker-us` registry, deploy the `bartenders` service, read and update its two Supabase secrets |
-| each game's repo, e.g. `mrkyle7/the-boxer` | `<name>-deploy` | Push to the game's own registry and deploy the game's own service |
+| `mrkyle7/bartenders-of-corfu`, `main` only | `bartenders-deploy` | Push to the `docker-us` registry, deploy the `bartenders` service, read and update its two Supabase secrets |
+| each game's repo, `main` only, e.g. `mrkyle7/the-boxer` | `<name>-deploy` | Push to the game's own registry and deploy the game's own service |
 
 Every deploy account also has read-only access to Cloud Run, so its rollback step can list revisions. It can see other services but can't change them. Each game has its own image registry, because Google only grants registry access per registry, not per image, so a shared one would let any game overwrite another's images.
 
 Everything above is defined in `terraform/github.tf`, `terraform/bartenders.tf` and `terraform/modules/game`.
 
-### Why a pull request can't apply anything
+### Why a pull request can't apply or deploy anything
 
 The branch rule is enforced by Google Cloud, not by the workflow file, so a pull request that rewrites `.github/workflows/deploy.yml` doesn't get around it.
 - GitHub signs a token for every job that says which repo, branch (`ref`) and event it's running for.
 - Google only lets a job act as `github-terraform` when that token says `mrkyle7/cheetahmoongames` on `refs/heads/master` (or `main`).
 - Pull requests run as `refs/pull/<n>/merge` and other branches as their own ref, so they only get the read-only plan account.
+- The deploy accounts work the same way: `bartenders-deploy` and each `<name>-deploy` only accept jobs on `main` of their own repo. A pull request to a game repo that edits its workflow can't deploy anything.
 - `pull_request_target` runs with the default branch's ref, so it's refused for every repo.
 
-That leaves the default branch as the way in: anyone who can push or merge to it can apply anything. Protect it in GitHub (Settings → Branches → add a rule for `master`):
+That leaves each repo's default branch as the way in. Anyone who can push or merge to this repo's default branch can apply anything, and to a game repo's `main` can deploy that game. Protect those branches in GitHub (Settings → Branches → add a rule for `master` here, and `main` in each game repo):
 - require a pull request with an approving review before merging
 - block force pushes and deletions
 - tick "Do not allow bypassing the above settings" if others have admin access

@@ -9,8 +9,10 @@
 #                                                   default branch only
 #   mrkyle7/cheetahmoongames     github-terraform-  read-only plan, for pull requests
 #                                plan
-#   mrkyle7/bartenders-of-corfu  bartenders-deploy  deploys bartenders only (bartenders.tf)
-#   each game's repo             <name>-deploy      deploys that game only (modules/game)
+#   mrkyle7/bartenders-of-corfu  bartenders-deploy  deploys bartenders only, from main
+#                                                   (bartenders.tf)
+#   each game's repo             <name>-deploy      deploys that game only, from its
+#                                                   deploy branch (modules/game)
 # ---------------------------------------------------------------------------
 
 resource "google_iam_workload_identity_pool" "github" {

@@ -61,6 +61,7 @@ Those three fields are all a simple game needs. The optional ones:
 | `concurrency` | Cloud Run's 80 | How many requests or open WebSockets one instance takes at once. Raise it (The Boxer uses `1000`) for WebSocket games. |
 | `cpu` / `memory` | `"1"` / `"512Mi"` | For heavier games. |
 | `env` | none | Plain settings for the container, e.g. `env = { MAX_PLAYERS = "6" }`. Don't put secrets here; see below. |
+| `deploy_branches` | `["main"]` | Branches whose workflows may deploy, checked by Google Cloud against GitHub's signed token. Pull requests and other branches can't deploy, even if they edit the workflow. Change this only if the repo deploys from another branch, e.g. `["master"]`. |
 
 **Naming rules:**
 - `name` must be 23 characters or fewer: accounts are called `<name>-run` and `<name>-deploy`, and Google caps those at 30.
@@ -138,6 +139,7 @@ It's live when `Ready` is `True`. Until then the address won't load over HTTPS. 
   - This repo's pull request isn't merged and applied yet.
   - Or `github_repo` in `games.tf` doesn't match the repo exactly (`owner/name`).
   - Or `SERVICE_ACCOUNT` names another game's account.
+  - Or the job isn't running on a branch in `deploy_branches` (default `main`). That's by design for pull requests; for a real deploy branch, add it to the game's entry.
 - **"Permission denied" on push or deploy:**
   - `REPOSITORY`, `SERVICE_NAME` or `SERVICE_ACCOUNT` in the game's workflow probably doesn't match `name` in `games.tf`. The deploy account can only push to its own registry and deploy its own service.
 - **The merge run fails at "Refuse deletions unless allowed":**

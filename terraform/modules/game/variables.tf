@@ -13,6 +13,13 @@ variable "github_repo" {
   description = "owner/repo whose GitHub Actions deploy this game."
 }
 
+variable "deploy_branches" {
+  type        = list(string)
+  default     = ["main"]
+  nullable    = false
+  description = "Branches of github_repo whose workflows may deploy. Pull requests and other branches can't."
+}
+
 # --- Runtime settings (all optional) -------------------------------------------
 
 variable "min_instances" {

@@ -147,9 +147,9 @@ resource "google_dns_record_set" "cname" {
   rrdatas      = ["ghs.googlehosted.com."]
 }
 
-# --- Deploying: the game's own repo only ----------------------------------------
+# --- Deploying: the game's own repo, deploy branch only -------------------------
 #
-# The game's workflow acts as this account. It can push to this game's
+# The game's workflow acts as this account, from its deploy branch only. It can push to this game's
 # registry and deploy new revisions of this game's service, nothing else.
 
 resource "google_service_account" "deploy" {
@@ -158,10 +158,13 @@ resource "google_service_account" "deploy" {
   display_name = "GitHub Actions deploys for ${var.name}"
 }
 
+# Only jobs running on a deploy branch may act as it, checked against GitHub's
+# signed token, so a pull request that edits the workflow can't deploy.
 resource "google_service_account_iam_member" "github_deploy" {
+  for_each           = toset(var.deploy_branches)
   service_account_id = google_service_account.deploy.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${var.github_pool_name}/attribute.repository/${var.github_repo}"
+  member             = "principalSet://iam.googleapis.com/${var.github_pool_name}/attribute.repository_ref/${var.github_repo}@refs/heads/${each.value}"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "deploy_developer" {

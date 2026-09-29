@@ -32,6 +32,8 @@ module "game" {
   subdomain   = each.value.subdomain
   github_repo = each.value.github_repo
 
+  deploy_branches = try(each.value.deploy_branches, null)
+
   min_instances    = try(each.value.min_instances, null)
   max_instances    = try(each.value.max_instances, null)
   timeout          = try(each.value.timeout, null)

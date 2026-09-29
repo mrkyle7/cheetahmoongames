@@ -76,6 +76,12 @@ variable "bartenders_github_repo" {
   description = "Repo that deploys Bartenders of Corfu"
 }
 
+variable "bartenders_deploy_branches" {
+  type        = list(string)
+  default     = ["main"]
+  description = "Branches of bartenders_github_repo whose workflows may deploy Bartenders."
+}
+
 locals {
   bartenders_host = "${var.bartenders_subdomain}.${var.domain_name}"
 
