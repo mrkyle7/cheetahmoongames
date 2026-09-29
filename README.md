@@ -20,7 +20,7 @@ GitHub Actions sign in to Google Cloud without keys, through Workload Identity F
 | `mrkyle7/cheetahmoongames`, **default branch only** | `github-terraform` | Apply the Terraform: IAM, service accounts, sign-in, DNS, secrets, every service. Also deploys the home page. |
 | `mrkyle7/cheetahmoongames`, pull requests and other branches | `github-terraform-plan` | Read only: the project's configuration and IAM (not secret values) and the Terraform state, enough to show a plan |
 | `mrkyle7/bartenders-of-corfu`, `main` only | `bartenders-deploy` | Push to the `docker-us` registry, deploy the `bartenders` service, read and update its two Supabase secrets |
-| each game's repo, `main` only, e.g. `mrkyle7/the-boxer` | `<name>-deploy` | Push to the game's own registry and deploy the game's own service |
+| each game's repo, `main` only, e.g. `mrkyle7/the-boxer` | `<name>-deploy` | Push to the game's own registry, deploy the game's own service, and update the game's own secrets, if it has any |
 
 Every deploy account also has read-only access to Cloud Run, so its rollback step can list revisions. It can see other services but can't change them. Each game has its own image registry, because Google only grants registry access per registry, not per image, so a shared one would let any game overwrite another's images.
 

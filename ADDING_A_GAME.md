@@ -92,6 +92,7 @@ Those three fields are all a simple game needs. The optional ones:
 | `concurrency` | Cloud Run's 80 | How many requests or open WebSockets one instance takes at once. Raise it (The Boxer uses `1000`) for WebSocket games. |
 | `cpu` / `memory` | `"1"` / `"512Mi"` | For heavier games. |
 | `env` | none | Plain settings for the container, e.g. `env = { MAX_PLAYERS = "6" }`. Don't put secrets here; see below. |
+| `secrets` | none | Settings that are secret, e.g. `["SUPABASE_URL", "SUPABASE_KEY"]`. See [Games that need secrets or a database](#games-that-need-secrets-or-a-database). |
 | `deploy_branches` | `["main"]` | Branches whose workflows may deploy. Change it only if the game's repo deploys from another branch, e.g. `["master"]`. |
 
 ### Add a card to `site/public/index.html`
@@ -212,10 +213,32 @@ Players have one Cheetah Moon account for every game. They sign in or create it 
 
 ## Things to know
 
-- **Games that need secrets or a database.** The `game` module only covers plain settings. For Secret Manager secrets, a database or other extra infrastructure, add them in a file of their own, as `terraform/bartenders.tf` does for Bartenders. The game reads them as `<name>-run@bartenders-464918.iam.gserviceaccount.com`; grant that account access. If the game's workflow also needs to change them, grant `<name>-deploy` access to just those secrets.
+- **Games that need secrets or a database.** See [below](#games-that-need-secrets-or-a-database).
 - **Removing a game.** Delete its entry in `games.tf` and its card. The plan will delete its service, subdomain and DNS record, so the merge run refuses to apply it. Run the workflow by hand (Actions → Deploy → Run workflow) with **allow_destroy** ticked. This also deletes the game's image registry and every image in it. Archive or delete its repo separately.
 - **Renaming a game** (`name` or `subdomain`) replaces its service or domain mapping, which also needs **allow_destroy**. A new subdomain gets a new certificate, so expect a gap while it's issued.
 - **Changing the skeleton.** Edit `scripts/game-template/`. Every pull request here generates a test game from it and runs that game's tests and container, so a broken template shows up before merging. Existing games don't change; update them by hand if they need the fix.
+
+## Games that need secrets or a database
+
+A game that keeps anything beyond one server's life, like saved games or scores, needs a database, and the game's server needs a secret to reach it. [Bezique](https://github.com/mrkyle7/bezique) is the example: its games are saved in a Supabase project of their own.
+
+1. **The database.** Make a Supabase project for the game (one per game, in the same organisation as Bartenders' and Bezique's). Keep its tables in the game's repo as migrations (`supabase/migrations`, made with `supabase init` and `supabase migration new`), so they're reviewed and applied like code.
+2. **The secrets,** in this repo's `terraform/games.tf`:
+
+   ```hcl
+   snap = {
+     ...
+     secrets = ["SUPABASE_URL", "SUPABASE_KEY"]
+   }
+   ```
+
+   For each one the `game` module creates a Secret Manager secret, `snap-supabase-url` and `snap-supabase-key`, and sets it as that environment variable in the game's container. It gives `snap-run` read access, and `snap-deploy` read and add-version access, to those secrets only. Each starts as `not-set`, which the game should treat as "not configured" (Cloud Run can't start a revision whose secret has no value at all).
+3. **Filling them in.** Store the real values as GitHub Actions secrets in the game's repo. The game's deploy job copies them into Secret Manager before deploying, and applies the migrations: copy the "Update the database" and "Sync the database secrets to Secret Manager" steps from Bezique's `.github/workflows/ci-cd.yml`. Its `CLAUDE.md` ("Saved games") lists which Supabase values to use.
+4. **Testing.** Bezique's CI runs `supabase start` so its tests use a real local database built from the migrations.
+
+Anything that isn't a secret or a Supabase project (a storage bucket, say) is new infrastructure: add it in a file of its own in `terraform/`, as `bartenders.tf` does for Bartenders, and grant `<name>-run` access to just that.
+
+Only one server should write to a game's database at a time. If the game keeps state in memory, like Bezique, keep `max_instances = 1`, and have a starting server take over from the old one cleanly during a deploy. Bezique's `supabase/migrations` and `src/bezique/persistence.js` show one way.
 
 ## If something goes wrong
 

@@ -17,3 +17,8 @@ output "image_repository" {
   value       = "${google_artifact_registry_repository.images.location}-docker.pkg.dev/${var.project}/${google_artifact_registry_repository.images.repository_id}"
   description = "Where the game's workflow pushes images"
 }
+
+output "secrets" {
+  value       = local.secret_ids
+  description = "Secret Manager secret for each secret environment variable"
+}
