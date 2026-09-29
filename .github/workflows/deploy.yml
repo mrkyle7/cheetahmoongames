@@ -1,0 +1,236 @@
+name: Deploy
+
+# Pull requests: test the home page, check the terraform and post its plan.
+# Merges to the default branch: apply the terraform, then ship the home page.
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      allow_destroy:
+        description: Apply even if the plan deletes or replaces resources
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: bartenders-464918
+  REGION: us-east1
+  REPOSITORY: cheetahmoongames
+  IMAGE_NAME: cheetahmoongames
+  SERVICE_NAME: cheetahmoongames
+  TERRAFORM_VERSION: 1.14.5
+  WIF_PROVIDER: projects/987774112216/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  # GCP only lets this repo's default branch act as github-terraform, and
+  # anything else (pull requests, other branches) only as the read-only plan
+  # account; see terraform/github.tf. Editing this file can't change that.
+  SERVICE_ACCOUNT: github-terraform@bartenders-464918.iam.gserviceaccount.com
+  PLAN_SERVICE_ACCOUNT: github-terraform-plan@bartenders-464918.iam.gserviceaccount.com
+
+jobs:
+  site-test:
+    name: Test home page
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm test
+
+      - name: Container starts and serves the page
+        run: |
+          docker build -t site:ci .
+          docker run -d --name site -p 8080:8080 -e BARTENDERS_URL=https://bartenders.example site:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8080/ | grep -q "Cheetah Moon Games" && exit 0
+            sleep 1
+          done
+          docker logs site
+          exit 1
+
+  terraform-check:
+    name: Check terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+
+  plan:
+    name: Terraform plan
+    needs: terraform-check
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.PLAN_SERVICE_ACCOUNT }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - run: terraform init -input=false -lock=false
+
+      - name: Plan
+        run: |
+          # Read-only account: it can't take the state lock.
+          terraform plan -input=false -lock=false -no-color | tee plan.txt
+          {
+            echo "## Terraform plan"
+            echo
+            grep -E '^Plan:|^No changes' plan.txt || true
+            echo
+            echo '<details><summary>Full plan</summary>'
+            echo
+            echo '```'
+            head -c 900000 plan.txt
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: Terraform apply
+    needs: [ site-test, terraform-check ]
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    # Never run two applies at once, and never cancel one half way.
+    concurrency:
+      group: terraform-apply
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - name: Plan
+        run: |
+          terraform plan -input=false -lock-timeout=5m -no-color -out=tfplan | tee plan.txt
+          {
+            echo "## Terraform apply"
+            echo
+            grep -E '^Plan:|^No changes' plan.txt || true
+            echo
+            echo '<details><summary>Full plan</summary>'
+            echo
+            echo '```'
+            head -c 900000 plan.txt
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Unattended applies only add or change. Deleting or replacing something
+      # (a replaced domain mapping means an HTTPS outage while its certificate
+      # is reissued) needs a manual run with allow_destroy ticked.
+      - name: Refuse deletions unless allowed
+        env:
+          ALLOW_DESTROY: ${{ github.event.inputs.allow_destroy }}
+        run: |
+          DELETES=$(terraform show -json tfplan | jq -r '.resource_changes[]? | select(.change.actions | index("delete")) | .address')
+          if [ -n "$DELETES" ] && [ "$ALLOW_DESTROY" != "true" ]; then
+            echo "This plan deletes or replaces:"
+            echo "$DELETES"
+            echo
+            echo "Nothing was applied. If this is intended, run this workflow manually (Actions → Deploy → Run workflow) with allow_destroy ticked."
+            exit 1
+          fi
+
+      - run: terraform apply -input=false -lock-timeout=5m tfplan
+
+  deploy-site:
+    name: Deploy home page
+    needs: apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+          IMAGE_URI=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }}
+          docker build -t $IMAGE_URI site
+          docker push $IMAGE_URI
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --image="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }}" \
+            --region="$REGION" --project="$PROJECT_ID" --quiet
+
+      - name: Verify deployment
+        run: |
+          EXPECTED="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }}"
+          ACTIVE=$(gcloud run services describe $SERVICE_NAME --region="$REGION" --project="$PROJECT_ID" \
+            --format='value(spec.template.spec.containers[0].image)')
+          URL=$(gcloud run services describe $SERVICE_NAME --region="$REGION" --project="$PROJECT_ID" \
+            --format='value(status.url)')
+          echo "Expected: $EXPECTED"
+          echo "Active:   $ACTIVE"
+          [ "$ACTIVE" = "$EXPECTED" ] || { echo "Active image does not match"; exit 1; }
+          curl -fsS "$URL/" | grep -q "Cheetah Moon Games" || { echo "Service did not serve the home page"; exit 1; }
+          echo "Deployment verified at $URL"
+
+      - name: Roll back on failure
+        if: failure() && steps.deploy.outcome == 'failure'
+        run: |
+          FAILED_REV=$(gcloud run services describe $SERVICE_NAME --region="$REGION" --project="$PROJECT_ID" \
+            --format='value(status.latestCreatedRevisionName)')
+          PREV_REV=$(gcloud run revisions list --service="$SERVICE_NAME" --region="$REGION" --project="$PROJECT_ID" \
+            --filter="status.conditions.type:Ready AND status.conditions.status:True AND metadata.name!=$FAILED_REV" \
+            --sort-by="~metadata.creationTimestamp" --limit=1 --format='value(metadata.name)')
+          if [ -z "$PREV_REV" ]; then
+            echo "No previous healthy revision to roll back to"
+            exit 1
+          fi
+          echo "Rolling back to $PREV_REV"
+          gcloud run services update-traffic $SERVICE_NAME --region="$REGION" --project="$PROJECT_ID" \
+            --to-revisions="$PREV_REV=100"
