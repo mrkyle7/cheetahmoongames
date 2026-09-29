@@ -91,3 +91,15 @@ locals {
     [for game in values(local.games) : game.github_repo],
   ))
 }
+
+variable "email_from" {
+  type        = string
+  default     = "noreply@cheetahmoongames.com"
+  description = "Sender of account emails such as password resets. Brevo must have verified it, or authenticated its domain."
+}
+
+variable "email_from_name" {
+  type        = string
+  default     = "Cheetah Moon Games"
+  description = "Display name for account emails."
+}

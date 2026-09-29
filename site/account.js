@@ -10,6 +10,8 @@
 //   POST /api/account/login       { username, password, next }
 //   POST /api/account/register    { username, email, password, next }
 //   POST /api/account/logout
+//   POST /api/account/forgot      { email, next }: email a password reset link
+//   POST /api/account/reset       { token, password, next }: set a new password
 //   GET  /api/account/me          who the login cookie belongs to
 //   GET  /api/account/keys/:kid   the public key that checks a login cookie
 //
@@ -41,6 +43,7 @@ const PLAYER_MESSAGES = new Set([
 const RENAMED_MESSAGES = {
   'User already exists by name or email': 'That name or email already has an account. Try signing in instead.',
 };
+const RESET_LINK_INVALID = 'This reset link has expired or has already been used. Ask for a new one.';
 const SIGN_IN_FAILED = "That name and password don't match an account.";
 const UNAVAILABLE = "Sign-in isn't working right now. Please try again in a minute.";
 
@@ -148,6 +151,45 @@ function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fe
     return send(502, { error: UNAVAILABLE });
   }
 
+  // Always the same answer, whether or not the email has an account.
+  async function forgot(req, send) {
+    const body = await readJson(req);
+    const email = body && typeof body.email === 'string' ? body.email.trim() : '';
+    if (!email || email.length > 254 || !email.includes('@')) {
+      return send(400, { error: 'Please enter the email address for your account.' });
+    }
+    const next = safeNext(body.next, cookieDomain);
+    const payload = { email };
+    if (next !== '/') payload.next = next;
+    const r = await upstream('/v1/auth/password-reset', { method: 'POST', body: payload });
+    if (r.status === 202 || r.status === 200) return send(200, { ok: true });
+    return send(502, { error: UNAVAILABLE });
+  }
+
+  // Sets the new password and signs the player in with the cookie Bartenders sends.
+  async function reset(req, send) {
+    const body = await readJson(req);
+    if (!body) return send(400, { error: 'Something went wrong. Please try again.' });
+    const token = typeof body.token === 'string' ? body.token : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!token) return send(400, { error: RESET_LINK_INVALID });
+    const next = safeNext(body.next, cookieDomain);
+    const r = await upstream('/v1/auth/password-reset/confirm', {
+      method: 'POST',
+      body: { token, new_password: password },
+    });
+    if (r.status === 200) {
+      const name = r.json && r.json.username;
+      return send(200, { ok: true, name, next }, { 'Set-Cookie': withLegacyCleared(r.setCookies) });
+    }
+    if (r.status === 400 || r.status === 422) {
+      const message = r.json && typeof r.json.error === 'string' ? r.json.error : '';
+      if (message === RESET_LINK_INVALID) return send(400, { error: RESET_LINK_INVALID, expired: true });
+      return send(400, { error: friendlyError(message, "That password can't be used. Try another.") });
+    }
+    return send(502, { error: UNAVAILABLE });
+  }
+
   async function signOut(req, send) {
     const cookie = loginCookieValue(req);
     let setCookies = [];
@@ -215,6 +257,8 @@ function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fe
     if (p === '/api/account/login' && req.method === 'POST') work = signIn(req, send, 'login');
     else if (p === '/api/account/register' && req.method === 'POST') work = signIn(req, send, 'register');
     else if (p === '/api/account/logout' && req.method === 'POST') work = signOut(req, send);
+    else if (p === '/api/account/forgot' && req.method === 'POST') work = forgot(req, send);
+    else if (p === '/api/account/reset' && req.method === 'POST') work = reset(req, send);
     else if (p === '/api/account/me' && req.method === 'GET') work = me(req, url, send);
     else if (p.startsWith('/api/account/keys/') && req.method === 'GET') work = key(p.slice('/api/account/keys/'.length), send);
     else {

@@ -240,3 +240,79 @@ test('next only allows this site and its games', () => {
   assert.strictEqual(safeNext('http://localhost:3000/', ''), 'http://localhost:3000/');
   assert.strictEqual(safeNext('https://evil.example/', ''), '/');
 });
+
+// --- Forgotten passwords --------------------------------------------------------
+
+test('serves the reset page without leaking its link as a referrer', async () => {
+  await withServer(ENV, fakeBartenders({}), async (req) => {
+    const res = await req('GET', '/reset-password?token=abc');
+    assert.strictEqual(res.status, 200);
+    assert.match(res.body, /id="resetForm"/);
+    assert.strictEqual(res.headers['referrer-policy'], 'no-referrer');
+  });
+});
+
+test('asking for a reset link passes the email and a safe next on', async () => {
+  const bartenders = fakeBartenders({ 'POST /v1/auth/password-reset': { status: 202, body: { ok: true } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/forgot', {
+      body: { email: ' ann@example.com ', next: 'https://bezique.cheetahmoongames.com/' },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, { ok: true });
+    assert.deepStrictEqual(bartenders.calls[0].body, { email: 'ann@example.com', next: 'https://bezique.cheetahmoongames.com/' });
+
+    await req('POST', '/api/account/forgot', { body: { email: 'ann@example.com', next: 'https://evil.example/' } });
+    assert.deepStrictEqual(bartenders.calls[1].body, { email: 'ann@example.com' }, 'off-site next is dropped');
+  });
+});
+
+test('asking without an email is refused here', async () => {
+  const bartenders = fakeBartenders({});
+  await withServer(ENV, bartenders, async (req) => {
+    for (const body of [{}, { email: '' }, { email: 'no-at-sign' }, { email: 42 }]) {
+      const res = await req('POST', '/api/account/forgot', { body });
+      assert.strictEqual(res.status, 400);
+    }
+    assert.strictEqual(bartenders.calls.length, 0);
+  });
+});
+
+test('a new password from a reset link signs the player in', async () => {
+  const bartenders = fakeBartenders({
+    'POST /v1/auth/password-reset/confirm': { body: { username: 'Ann', id: 'u1' }, cookies: [SHARED_COOKIE] },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/reset', {
+      body: { token: 'tok123', password: 'NewPassword2', next: 'https://bezique.cheetahmoongames.com/' },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, { ok: true, name: 'Ann', next: 'https://bezique.cheetahmoongames.com/' });
+    assert.ok(res.headers['set-cookie'].includes(SHARED_COOKIE));
+    assert.deepStrictEqual(bartenders.calls[0].body, { token: 'tok123', new_password: 'NewPassword2' });
+  });
+});
+
+test('expired links and refused passwords are explained', async () => {
+  const expired = 'This reset link has expired or has already been used. Ask for a new one.';
+  for (const [upstream, shown, isExpired] of [
+    [expired, expired, true],
+    ['Password must contain at least one number', 'Password must contain at least one number.', undefined],
+    ['something internal', "That password can't be used. Try another.", undefined],
+  ]) {
+    const bartenders = fakeBartenders({ 'POST /v1/auth/password-reset/confirm': { status: 400, body: { error: upstream } } });
+    await withServer(ENV, bartenders, async (req) => {
+      const res = await req('POST', '/api/account/reset', { body: { token: 't', password: 'p' } });
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.json.error, shown);
+      assert.strictEqual(res.json.expired, isExpired);
+      assert.strictEqual(res.headers['set-cookie'], undefined);
+    });
+  }
+  const bartenders = fakeBartenders({});
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/reset', { body: { password: 'p' } });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(bartenders.calls.length, 0, 'no token, nothing sent');
+  });
+});

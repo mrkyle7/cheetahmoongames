@@ -84,6 +84,10 @@
         }
         .link:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
 
+        .forgot { margin: -4px 0 0; text-align: center; font-size: 15px; }
+        .sent p { margin: 0 0 14px; }
+        .sent .hint { color: var(--muted); font-size: 15px; }
+
         .signed-in p { margin: 0 0 18px; }
         .signed-in .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
         .signed-in .primary { text-decoration: none; display: inline-block; }
@@ -123,7 +127,21 @@
                     </span>
                 </label>
                 <button class="primary" type="submit">Sign in</button>
+                <p class="forgot"><button class="link" type="button" data-mode="forgot">Forgot your password?</button></p>
             </form>
+
+            <form id="forgotForm" novalidate hidden>
+                <label>Email
+                    <span class="hint" id="forgotHint">The email address on your account. We'll send it a link to choose a new password.</span>
+                    <input id="forgotEmail" name="email" type="email" autocomplete="email" required aria-describedby="forgotHint">
+                </label>
+                <button class="primary" type="submit">Send reset link</button>
+            </form>
+
+            <div class="sent" id="forgotSent" hidden role="status">
+                <p>If <strong id="sentTo"></strong> belongs to an account, a link to reset its password is on its way. It works for an hour.</p>
+                <p class="hint">Nothing arrived after a few minutes? Check your spam folder, or <button class="link" type="button" data-mode="forgot">try again</button>.</p>
+            </div>
 
             <form id="registerForm" novalidate hidden>
                 <label>Name
@@ -147,6 +165,7 @@
 
             <p class="switch" id="switchToRegister">New here? <button class="link" type="button" data-mode="register">Create an account</button></p>
             <p class="switch" id="switchToLogin" hidden>Already have an account? <button class="link" type="button" data-mode="login">Sign in</button></p>
+            <p class="switch" id="backToLogin" hidden>Remembered it? <button class="link" type="button" data-mode="login">Back to sign in</button></p>
         </section>
     </main>
 
@@ -178,17 +197,23 @@
                 }
             }
 
+            const TITLES = { login: 'Sign in', register: 'Create an account', forgot: 'Reset your password' };
+            const FIRST_FIELD = { login: 'loginName', register: 'regName', forgot: 'forgotEmail' };
+
             function setMode(mode, focus) {
-                const register = mode === 'register';
-                $('title').textContent = register ? 'Create an account' : 'Sign in';
-                document.title = (register ? 'Create an account' : 'Sign in') + ' · Cheetah Moon Games';
-                $('loginForm').hidden = register;
-                $('registerForm').hidden = !register;
-                $('switchToRegister').hidden = register;
-                $('switchToLogin').hidden = !register;
+                $('title').textContent = TITLES[mode];
+                document.title = TITLES[mode] + ' · Cheetah Moon Games';
+                $('loginForm').hidden = mode !== 'login';
+                $('registerForm').hidden = mode !== 'register';
+                $('forgotForm').hidden = mode !== 'forgot';
+                $('forgotSent').hidden = true;
+                $('switchToRegister').hidden = mode !== 'login';
+                $('switchToLogin').hidden = mode !== 'register';
+                $('backToLogin').hidden = mode !== 'forgot';
                 error.textContent = '';
                 setSub(mode);
-                if (focus) $(register ? 'regName' : 'loginName').focus();
+                if (mode === 'forgot') $('sub').textContent = "Happens to everyone. We'll email you a link.";
+                if (focus) $(FIRST_FIELD[mode]).focus();
             }
 
             document.querySelectorAll('[data-mode]').forEach((b) => {
@@ -263,13 +288,43 @@
                 });
             });
 
+            $('forgotForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const email = f.email.value.trim();
+                if (!email || !f.email.checkValidity()) return fail('Please enter an email address like name@example.com.', f.email);
+                const button = f.querySelector('.primary');
+                button.disabled = true;
+                error.textContent = '';
+                try {
+                    const r = await fetch('/api/account/forgot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, next }),
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.ok) {
+                        $('sentTo').textContent = email;
+                        f.hidden = true;
+                        $('forgotSent').hidden = false;
+                        $('title').textContent = 'Check your email';
+                    } else {
+                        fail(data.error || 'Something went wrong. Please try again.');
+                    }
+                } catch (err) {
+                    fail("We couldn't reach the server. Check your connection and try again.");
+                }
+                button.disabled = false;
+            });
+
             $('signOut').addEventListener('click', async () => {
                 await fetch('/api/account/logout', { method: 'POST' }).catch(() => {});
                 $('signedIn').hidden = true;
                 setMode('login', true);
             });
 
-            setMode(params.get('mode') === 'register' ? 'register' : 'login', false);
+            const startMode = TITLES[params.get('mode')] ? params.get('mode') : 'login';
+            setMode(startMode, false);
 
             // Already signed in: offer to carry on instead.
             fetch('/api/account/me?next=' + encodeURIComponent(next)).then((r) => r.json()).then((me) => {
@@ -282,11 +337,13 @@
                 $('registerForm').hidden = true;
                 $('switchToRegister').hidden = true;
                 $('switchToLogin').hidden = true;
+                $('forgotForm').hidden = true;
+                $('backToLogin').hidden = true;
                 $('title').textContent = 'Welcome back';
             }).catch(() => {});
 
             if (!$('signedIn').hidden) return;
-            $(params.get('mode') === 'register' ? 'regName' : 'loginName').focus();
+            $(FIRST_FIELD[startMode]).focus();
         })();
     </script>
 </body>

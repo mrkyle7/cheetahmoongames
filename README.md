@@ -55,6 +55,7 @@ site/                  the home page: a small Node server with no dependencies
   public/index.html    the page itself, one card per game
   public/login.html    sign in or create an account, for every game
   server.js            serves the pages; redirects Bartenders' old URLs on this domain
+  public/reset-password.html  choose a new password from an emailed link
   account.js           /api/account/*: sign-in, passed on to Bartenders
 terraform/
   games.tf             the list of games (edit this to add one)
@@ -63,6 +64,7 @@ terraform/
   bartenders.tf        Bartenders (it has secrets and a database, so it gets its own file)
   github.tf            GitHub Actions sign-in and the CI service account's roles
   shared.tf            APIs, the data bucket, and docker-us (Bartenders' image registry)
+  email.tf             DNS records that let Brevo send email as @cheetahmoongames.com
 scripts/
   new-game.sh          creates a new game's repo from game-template/
   game-template/       the skeleton: Node server, Dockerfile, deploy workflow, CLAUDE.md
@@ -90,7 +92,7 @@ npm test
 BARTENDERS_URL=https://bartenders.cheetahmoongames.com npm start   # http://localhost:8080
 ```
 
-**Signing in.** `/login` is where players sign in or create an account, for every game. `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
+**Signing in.** `/login` is where players sign in, create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
 
 Besides that, the server handles traffic for Bartenders, which used to live on this domain:
 
@@ -161,3 +163,13 @@ Almost everything is in Terraform. These few things aren't, because Terraform ne
      ```
 
   In a browser instead, signed in as an owning account: in [Search Console](https://search.google.com/search-console), add a **Domain** property for `cheetahmoongames.com`. The existing DNS verification should confirm it at once. Then go to Settings → Users and permissions → ⋮ → Manage property owners → **Add an owner**.
+
+## Password reset emails (Brevo)
+
+"Forgot your password?" on `/login` emails a one-time link, valid for an hour. Bartenders sends it through [Brevo](https://www.brevo.com)'s API, from `noreply@cheetahmoongames.com` (`email_from` in `terraform/variables.tf`). Until the steps below are done, the page still works but no email goes out; Bartenders logs `BREVO_API_KEY not set`.
+
+1. **Let Brevo send as cheetahmoongames.com.** Brevo only sends from a domain whose DNS proves it may. Those records are in `terraform/email.tf` (a `brevo-code` TXT, two DKIM CNAMEs and DMARC), so once that's applied, go to Brevo → Senders, Domains & Dedicated IPs → Domains → `cheetahmoongames.com` and press **Authenticate**. If Brevo ever gives new values, update `email.tf`.
+2. **Make an API key.** Brevo → SMTP & API → API keys → **Generate a new API key**.
+3. **Give it to Bartenders.** In mrkyle7/bartenders-of-corfu: Settings → Secrets and variables → Actions → New repository secret, named `BREVO_API_KEY`. The next deploy of Bartenders copies it into the `brevo-api-key` secret in Secret Manager and starts a revision that uses it. To deploy without a code change, re-run its latest CI/CD run on `main`.
+
+To change the key, update the GitHub secret and deploy Bartenders again. Check it works by asking for a reset link for your own account.
