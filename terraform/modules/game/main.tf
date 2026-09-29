@@ -173,6 +173,12 @@ resource "google_cloud_run_v2_service_iam_member" "deploy_developer" {
   name     = google_cloud_run_v2_service.this.name
   role     = "roles/run.developer"
   member   = "serviceAccount:${google_service_account.deploy.email}"
+
+  # Both this and `public` edit the service's IAM policy, but the provider only
+  # serialises edits made through the same resource type (this is the v2 one,
+  # `public` the v1 one). Created together, they race and the provider retries
+  # the conflict for a long time; waiting for `public` avoids that.
+  depends_on = [google_cloud_run_service_iam_member.public]
 }
 
 # Read-only, so the workflow can list revisions when rolling back.
