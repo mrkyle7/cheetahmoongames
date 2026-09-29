@@ -7,6 +7,7 @@ The home page at **https://cheetahmoongames.com** and the Google Cloud setup beh
 | `cheetahmoongames.com` | Home page linking to every game | `site/` in this repo |
 | `bartenders.cheetahmoongames.com` | Bartenders of Corfu | [mrkyle7/bartenders-of-corfu](https://github.com/mrkyle7/bartenders-of-corfu) |
 | `boxer.cheetahmoongames.com` | The Boxer | [mrkyle7/the-boxer](https://github.com/mrkyle7/the-boxer) |
+| `bezique.cheetahmoongames.com` | Bezique | [mrkyle7/bezique](https://github.com/mrkyle7/bezique) |
 
 Every game runs as its own Cloud Run service in the `bartenders-464918` project and deploys from its own repo. This repo owns what they share: the Terraform for every service, domain, DNS record and permission, plus the home page.
 
