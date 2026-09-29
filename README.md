@@ -7,6 +7,7 @@ The home page at **https://cheetahmoongames.com** and the Google Cloud setup beh
 | `cheetahmoongames.com` | Home page linking to every game | `site/` in this repo |
 | `bartenders.cheetahmoongames.com` | Bartenders of Corfu | [mrkyle7/bartenders-of-corfu](https://github.com/mrkyle7/bartenders-of-corfu) |
 | `boxer.cheetahmoongames.com` | The Boxer | [mrkyle7/the-boxer](https://github.com/mrkyle7/the-boxer) |
+| `bezique.cheetahmoongames.com` | Bezique | [mrkyle7/bezique](https://github.com/mrkyle7/bezique) |
 
 Every game runs as its own Cloud Run service in the `bartenders-464918` project and deploys from its own repo. This repo owns what they share: the Terraform for every service, domain, DNS record and permission, plus the home page.
 
@@ -127,6 +128,32 @@ Almost everything is in Terraform. These few things aren't, because Terraform ne
   ```
 
 - **Cloud DNS zone** `cheetahmoongames-com`. Terraform adds records to it but doesn't own it.
-- **Domain ownership.** `cheetahmoongames.com` is verified in [Google Search Console](https://search.google.com/search-console). Cloud Run only lets a verified owner of the domain create domain mappings, so `github-terraform` must be an **owner** of that property. Without it, adding a game fails at apply with "Caller is not authorized to administer the domain". To add it, signed in as the account that verified the domain:
-  1. Open the domain's owner page: <https://www.google.com/webmasters/verification/details?domain=cheetahmoongames.com>. From Search Console, it's Settings → Users and permissions → ⋮ next to your name → Manage property owners.
-  2. Choose **Add an owner** and enter `github-terraform@bartenders-464918.iam.gserviceaccount.com`.
+- **Domain ownership.** Cloud Run only lets a verified owner of a domain create domain mappings for it. Ownership is kept by Google's Site Verification service, not Cloud IAM, so Terraform can't grant it. `github-terraform` must be an owner of `cheetahmoongames.com`; without that, adding a game fails at apply with "Caller is not authorized to administer the domain". To add it, as an account that already owns the domain:
+
+  1. Check which domains your `gcloud` account has verified: `gcloud domains list-user-verified`. If `cheetahmoongames.com` isn't listed, sign `gcloud` in as the account that verified it.
+  2. Sign in with the Site Verification permission and read the current owners:
+
+     ```sh
+     gcloud services enable siteverification.googleapis.com --project bartenders-464918
+     gcloud auth application-default login \
+       --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/siteverification
+     TOKEN=$(gcloud auth application-default print-access-token)
+     URL="https://www.googleapis.com/siteVerification/v1/webResource/dns%3A%2F%2Fcheetahmoongames.com"
+     # User credentials bill API calls to a "quota project": name this one.
+     curl -s -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: bartenders-464918" "$URL"
+     ```
+
+  3. Write the owners back with `github-terraform` added. The call replaces the whole list, so **keep every existing owner** from step 2:
+
+     ```sh
+     curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: bartenders-464918" \
+       -H "Content-Type: application/json" "$URL" -d '{
+       "site": { "type": "INET_DOMAIN", "identifier": "cheetahmoongames.com" },
+       "owners": [
+         "EXISTING-OWNER@example.com",
+         "github-terraform@bartenders-464918.iam.gserviceaccount.com"
+       ]
+     }'
+     ```
+
+  In a browser instead, signed in as an owning account: in [Search Console](https://search.google.com/search-console), add a **Domain** property for `cheetahmoongames.com`. The existing DNS verification should confirm it at once. Then go to Settings → Users and permissions → ⋮ → Manage property owners → **Add an owner**.

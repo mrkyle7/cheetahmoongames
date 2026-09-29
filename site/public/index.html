@@ -17,6 +17,7 @@
             --moon: #f3d36b;
             --bartenders: #d9822b;
             --boxer: #e2464b;
+            --bezique: #3fae74;
         }
 
         * { box-sizing: border-box; }
@@ -89,6 +90,7 @@
         .game:focus-visible { outline: 3px solid var(--moon); outline-offset: 3px; }
         .game.bartenders:hover { border-color: var(--bartenders); }
         .game.boxer:hover { border-color: var(--boxer); }
+        .game.bezique:hover { border-color: var(--bezique); }
 
         .art {
             height: 210px;
@@ -101,6 +103,8 @@
         .bartenders .art img { width: 100%; height: 100%; object-fit: cover; }
         .boxer .art { background: linear-gradient(180deg, #111726, #1d4a66); }
         .boxer .art svg { width: 62%; height: auto; }
+        .bezique .art { background: radial-gradient(circle at 50% 40%, #1f7a4c, #0d3b24); }
+        .bezique .art svg { width: 70%; height: auto; }
 
         .body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
         .body h2 { margin: 0 0 6px; font-size: 24px; }
@@ -115,9 +119,10 @@
             color: #fff;
         }
 
-        /* Both button colours keep at least 4.5:1 contrast with white text. */
+        /* Every button colour keeps at least 4.5:1 contrast with white text. */
         .bartenders .play { background: #a4561a; }
         .boxer .play { background: #b8262c; }
+        .bezique .play { background: #1d6b45; }
 
         footer { margin-top: 44px; color: var(--muted); font-size: 14px; }
 
@@ -173,6 +178,30 @@
                     <h2>The Boxer</h2>
                     <p>A live two-player fight. Punch, kick, block and read your opponent: head or tummy? Best of three rounds.</p>
                     <span class="play">Play The Boxer</span>
+                </div>
+            </a>
+
+            <a class="game bezique" href="https://bezique.cheetahmoongames.com/"
+               aria-label="Play Bezique">
+                <div class="art">
+                    <!-- A bezique: the queen of spades and the jack of diamonds. -->
+                    <svg viewBox="0 0 200 150" aria-hidden="true">
+                        <g transform="rotate(-12 80 80)">
+                            <rect x="48" y="22" width="64" height="96" rx="7" fill="#fbfaf5" stroke="#c9c4b3" stroke-width="1.5"/>
+                            <text x="56" y="44" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#15171c">Q</text>
+                            <text x="80" y="92" font-family="Georgia, serif" font-size="44" text-anchor="middle" fill="#15171c">&#9824;</text>
+                        </g>
+                        <g transform="rotate(12 120 80)">
+                            <rect x="88" y="22" width="64" height="96" rx="7" fill="#fbfaf5" stroke="#c9c4b3" stroke-width="1.5"/>
+                            <text x="96" y="44" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#c8202b">J</text>
+                            <text x="120" y="92" font-family="Georgia, serif" font-size="44" text-anchor="middle" fill="#c8202b">&#9830;</text>
+                        </g>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>Bezique</h2>
+                    <p>The classic two-player card game. Win tricks, declare marriages and beziques, and race to 1000 points.</p>
+                    <span class="play">Play Bezique</span>
                 </div>
             </a>
         </section>

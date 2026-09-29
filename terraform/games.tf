@@ -21,6 +21,17 @@ locals {
       concurrency      = 1000
       max_instances    = 1
     }
+
+    bezique = {
+      name        = "bezique"
+      subdomain   = "bezique"
+      github_repo = "mrkyle7/bezique"
+
+      # Games live in memory, so both players must reach the same instance.
+      # The pages poll with short requests, so the default timeout and
+      # concurrency are fine.
+      max_instances = 1
+    }
   }
 }
 
