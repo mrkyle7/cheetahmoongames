@@ -51,33 +51,3 @@ module "game" {
 
   depends_on = [google_project_service.cloudrun]
 }
-
-# The Boxer was defined as plain resources before the module existed. These
-# blocks carry its account, service, public access, domain and DNS record over
-# without recreating them. Its old bindings to the shared CI account and shared
-# registry are deliberately not carried over: they are deleted, and the module
-# creates the game's own. Delete these blocks once that apply has run.
-moved {
-  from = google_service_account.boxer_run
-  to   = module.game["boxer"].google_service_account.run
-}
-
-moved {
-  from = google_cloud_run_v2_service.boxer
-  to   = module.game["boxer"].google_cloud_run_v2_service.this
-}
-
-moved {
-  from = google_cloud_run_service_iam_member.boxer_public
-  to   = module.game["boxer"].google_cloud_run_service_iam_member.public
-}
-
-moved {
-  from = google_cloud_run_domain_mapping.boxer
-  to   = module.game["boxer"].google_cloud_run_domain_mapping.this
-}
-
-moved {
-  from = google_dns_record_set.boxer_cname
-  to   = module.game["boxer"].google_dns_record_set.cname
-}

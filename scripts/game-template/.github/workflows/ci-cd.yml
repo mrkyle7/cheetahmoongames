@@ -1,0 +1,128 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+# __TITLE__ runs as the __NAME__ Cloud Run service. The service, its registry,
+# __SUBDOMAIN__.cheetahmoongames.com and this repo's deploy access are defined
+# in mrkyle7/cheetahmoongames (the `__NAME__` entry in terraform/games.tf).
+# See https://github.com/mrkyle7/cheetahmoongames/blob/master/ADDING_A_GAME.md
+env:
+  PROJECT_ID: bartenders-464918
+  REGION: us-east1
+  REPOSITORY: __NAME__
+  IMAGE_NAME: __NAME__
+  SERVICE_NAME: __NAME__
+  WIF_PROVIDER: projects/987774112216/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  # Can deploy __NAME__ and push to its registry, nothing else, and only
+  # from main of this repo (enforced by Google Cloud, not by this file).
+  SERVICE_ACCOUNT: __NAME__-deploy@bartenders-464918.iam.gserviceaccount.com
+  # The page text the smoke tests look for. Keep it in step with the game.
+  PAGE_MARKER: "__TITLE__"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
+      - name: Container starts and serves the game
+        run: |
+          docker build -t game:ci .
+          docker run -d --name game -p 8080:8080 game:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8080/ | grep -qF "$PAGE_MARKER" && exit 0
+            sleep 1
+          done
+          docker logs game
+          exit 1
+
+  deploy:
+    needs: test
+    # DEPLOY_ENABLED is a repo variable (Settings → Secrets and variables →
+    # Actions → Variables). Set it to true once this game's entry in
+    # cheetahmoongames' games.tf has been merged and applied; until then the
+    # deploy account doesn't exist and this job would only fail.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP via OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+          IMAGE_URI=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }}
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          IMAGE_URI=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }}
+          gcloud run deploy $SERVICE_NAME \
+            --image="$IMAGE_URI" \
+            --region="$REGION" \
+            --project="$PROJECT_ID" \
+            --quiet
+
+      - name: Verify deployment
+        run: |
+          EXPECTED="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }}"
+          ACTIVE=$(gcloud run services describe $SERVICE_NAME \
+            --region="$REGION" --project="$PROJECT_ID" \
+            --format='value(spec.template.spec.containers[0].image)')
+          URL=$(gcloud run services describe $SERVICE_NAME \
+            --region="$REGION" --project="$PROJECT_ID" \
+            --format='value(status.url)')
+          echo "Expected: $EXPECTED"
+          echo "Active:   $ACTIVE"
+          [ "$ACTIVE" = "$EXPECTED" ] || { echo "Active image does not match"; exit 1; }
+          curl -fsS "$URL/" | grep -qF "$PAGE_MARKER" || { echo "Service did not serve the game"; exit 1; }
+          echo "Deployment verified at $URL"
+
+      - name: Roll back on failure
+        if: failure() && steps.deploy.outcome == 'failure'
+        run: |
+          FAILED_REV=$(gcloud run services describe $SERVICE_NAME \
+            --region="$REGION" --project="$PROJECT_ID" \
+            --format='value(status.latestCreatedRevisionName)')
+          PREV_REV=$(gcloud run revisions list \
+            --service="$SERVICE_NAME" --region="$REGION" --project="$PROJECT_ID" \
+            --filter="status.conditions.type:Ready AND status.conditions.status:True AND metadata.name!=$FAILED_REV" \
+            --sort-by="~metadata.creationTimestamp" --limit=1 \
+            --format='value(metadata.name)')
+          if [ -z "$PREV_REV" ]; then
+            echo "No previous healthy revision to roll back to"
+            exit 1
+          fi
+          echo "Rolling back to $PREV_REV"
+          gcloud run services update-traffic $SERVICE_NAME \
+            --region="$REGION" --project="$PROJECT_ID" \
+            --to-revisions="$PREV_REV=100"
