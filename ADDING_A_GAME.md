@@ -19,7 +19,7 @@ From this repo, with the [GitHub CLI](https://cli.github.com) signed in (`gh aut
 scripts/new-game.sh snap --title "Snap"
 ```
 
-This creates the private repo `mrkyle7/snap`, pushes a skeleton to `main`, and leaves a checkout in `./snap`. Options:
+This creates the private repo `mrkyle7/snap`, pushes a skeleton to `main`, and leaves a checkout in `./snap`. It first checks your checkout of this repo is up to date with `origin/master`, so the game starts from the current skeleton; `git pull` if it says it's behind. Options:
 
 | Option | Default | |
 | --- | --- | --- |
@@ -29,6 +29,7 @@ This creates the private repo `mrkyle7/snap`, pushes a skeleton to `main`, and l
 | `--owner someone` | `mrkyle7` | GitHub owner for the repo. |
 | `--dir path` | `./<name>` | Where to put the local checkout. |
 | `--no-github` | | Only write the skeleton locally, to look at it or build on it. |
+| `--allow-stale` | | Skip the up-to-date check, e.g. when offline. |
 
 **Naming rules,** which the script checks:
 - The name must be at most 23 characters: Google caps account IDs at 30, and the game gets `<name>-run` and `<name>-deploy`.
@@ -163,7 +164,7 @@ It's live when `Ready` is `True`. Until then the address won't load over HTTPS. 
 
 ## Building the game with Claude
 
-Open a Claude session in the game's repo. Its `CLAUDE.md` tells Claude to read this file first, and has:
+Open a Claude session in the game's repo. Its `CLAUDE.md` tells Claude to read all of this file before any work, and has:
 - the checklist for getting the game live, so a session can see which of the steps above are done
 - the rules the game must keep: `PORT`, serving at `/`, no local state, leaving the workflow's names alone, keeping `PAGE_MARKER` current, and knowing players only through `auth.js`
 

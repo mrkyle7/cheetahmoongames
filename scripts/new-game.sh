@@ -34,6 +34,7 @@ Options:
   --public            Create a public repo (default: private).
   --dir <path>        Where to put the local checkout (default: ./<name>).
   --no-github         Only write the skeleton locally; don't create a GitHub repo.
+  --allow-stale       Don't check this checkout is up to date with origin/master.
   -h, --help          Show this help.
 USAGE
 }
@@ -47,6 +48,7 @@ OWNER="mrkyle7"
 VISIBILITY="--private"
 DIR=""
 GITHUB=1
+ALLOW_STALE=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -57,6 +59,7 @@ while [ $# -gt 0 ]; do
     --dir) [ $# -ge 2 ] || die "--dir needs a value"; DIR="$2"; shift 2 ;;
     --public) VISIBILITY="--public"; shift ;;
     --no-github) GITHUB=0; shift ;;
+    --allow-stale) ALLOW_STALE=1; shift ;;
     -*) usage >&2; die "unknown option $1" ;;
     *) [ -z "$NAME" ] || die "only one name, got '$NAME' and '$1'"; NAME="$1"; shift ;;
   esac
@@ -101,6 +104,17 @@ if [ "$GITHUB" -eq 1 ]; then
   gh auth status >/dev/null 2>&1 || die "gh is not signed in: run 'gh auth login'"
   if gh repo view "$OWNER/$NAME" >/dev/null 2>&1; then
     die "github.com/$OWNER/$NAME already exists"
+  fi
+
+  # A new game starts from this checkout's skeleton, and its name is checked
+  # against this checkout's games.tf, so both must be current: an old
+  # checkout makes a game without whatever the skeleton has gained since.
+  if [ "$ALLOW_STALE" -eq 0 ]; then
+    git -C "$REPO_ROOT" fetch --quiet origin master \
+      || die "couldn't check this checkout is up to date with origin/master (use --allow-stale to skip)"
+    BEHIND="$(git -C "$REPO_ROOT" rev-list --count HEAD..origin/master)"
+    [ "$BEHIND" -eq 0 ] \
+      || die "this checkout is $BEHIND commit(s) behind origin/master, so the skeleton may be out of date: run 'git pull' first (or --allow-stale)"
   fi
 fi
 
