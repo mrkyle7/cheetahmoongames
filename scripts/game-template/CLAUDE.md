@@ -4,7 +4,7 @@ A game on **cheetahmoongames.com**, served at **https://__SUBDOMAIN__.cheetahmoo
 
 ## Read this first
 
-Before any work on hosting, deploys, the workflow, domains or Google Cloud, read **[ADDING_A_GAME.md](https://github.com/mrkyle7/cheetahmoongames/blob/master/ADDING_A_GAME.md)** in mrkyle7/cheetahmoongames. It explains how this game gets onto the site and what each step does.
+Before any work in this repo, read **[ADDING_A_GAME.md](https://github.com/mrkyle7/cheetahmoongames/blob/master/ADDING_A_GAME.md)** in mrkyle7/cheetahmoongames in full, not only the section you need. It explains how this game gets onto the site, what each step does, and what every game must have: the shared Cheetah Moon sign-in, a link back to cheetahmoongames.com, its own icons, and being installable as an app. The rules below repeat those; the doc explains them.
 
 The infrastructure is not in this repo. The Cloud Run service, image registry, subdomain, DNS record and this repo's deploy permissions all live in `terraform/` in mrkyle7/cheetahmoongames, and change through pull requests there. That repo's workflow applies them. To change them, clone mrkyle7/cheetahmoongames and open a pull request there. Never create or change Google Cloud resources by hand or from this repo.
 
