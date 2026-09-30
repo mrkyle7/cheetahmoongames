@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cheetah Moon Games</title>
-    <meta name="description" content="Games from Cheetah Moon: Bartenders of Corfu, The Boxer and Bezique.">
+    <meta name="description" content="Games from Cheetah Moon: Bartenders of Corfu, The Boxer, Bezique and Catch The Flag.">
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
     <link rel="stylesheet" href="/assets/site.css">
     <style>
@@ -48,6 +48,7 @@
         .game.bartenders:hover { border-color: var(--bartenders); }
         .game.boxer:hover { border-color: var(--boxer); }
         .game.bezique:hover { border-color: var(--bezique); }
+        .game.flag:hover { border-color: var(--flag); }
 
         .art {
             height: 210px;
@@ -62,6 +63,8 @@
         .boxer .art svg { width: 62%; height: auto; }
         .bezique .art { background: radial-gradient(circle at 50% 40%, #1f7a4c, #0d3b24); }
         .bezique .art svg { width: 70%; height: auto; }
+        .flag .art { background: linear-gradient(180deg, #2f7d3a, #1f5a28); }
+        .flag .art svg { width: 70%; height: auto; }
 
         .body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
         .body h2 { margin: 0 0 6px; font-size: 24px; }
@@ -80,6 +83,7 @@
         .bartenders .play { background: #a4561a; }
         .boxer .play { background: #b8262c; }
         .bezique .play { background: #1d6b45; }
+        .flag .play { background: #2563eb; }
 
         footer { margin-top: 44px; color: var(--muted); font-size: 14px; }
 
@@ -156,6 +160,31 @@
                     <h2>Bezique</h2>
                     <p>The classic two-player card game. Win tricks, declare marriages and beziques, and race to 1000 points.</p>
                     <span class="play">Play Bezique</span>
+                </div>
+            </a>
+
+            <a class="game flag" href="https://catch-the-flag.cheetahmoongames.com/"
+               aria-label="Play Catch The Flag">
+                <div class="art">
+                    <!-- Two runners, flags to grab and a red one to dodge. -->
+                    <svg viewBox="0 0 200 150" aria-hidden="true">
+                        <g><rect x="30" y="30" width="3" height="40" fill="#e8e2d0"/><path d="M33 30h24l-7 8 7 8H33z" fill="#22c55e"/></g>
+                        <g><rect x="150" y="22" width="3" height="40" fill="#e8e2d0"/><path d="M153 22h24l-7 8 7 8H153z" fill="#facc15"/></g>
+                        <g><rect x="92" y="78" width="3" height="40" fill="#e8e2d0"/><path d="M95 78h24l-7 8 7 8H95z" fill="#ef4444"/>
+                            <path d="M101 81l8 10m0-10l-8 10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></g>
+                        <g><rect x="160" y="96" width="3" height="40" fill="#e8e2d0"/><path d="M163 96h24l-7 8 7 8H163z" fill="#a855f7"/></g>
+                        <circle cx="58" cy="104" r="17" fill="#ff8a3d"/>
+                        <circle cx="52" cy="100" r="4" fill="#fff"/><circle cx="64" cy="100" r="4" fill="#fff"/>
+                        <circle cx="53" cy="101" r="2" fill="#111"/><circle cx="65" cy="101" r="2" fill="#111"/>
+                        <circle cx="128" cy="56" r="17" fill="#3dc6ff"/>
+                        <circle cx="122" cy="52" r="4" fill="#fff"/><circle cx="134" cy="52" r="4" fill="#fff"/>
+                        <circle cx="123" cy="53" r="2" fill="#111"/><circle cx="135" cy="53" r="2" fill="#111"/>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>Catch The Flag</h2>
+                    <p>A live two-player race. Grab the coloured flags for points, but touch a red one and you lose a point. Most points in 60 seconds wins.</p>
+                    <span class="play">Play Catch The Flag</span>
                 </div>
             </a>
         </section>
