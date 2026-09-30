@@ -40,6 +40,19 @@ locals {
       # mrkyle7/bezique fills these in from its GitHub secrets.
       secrets = ["SUPABASE_URL", "SUPABASE_KEY", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"]
     }
+
+    catch-the-flag = {
+      name        = "catch-the-flag"
+      subdomain   = "catch-the-flag"
+      github_repo = "mrkyle7/catch-the-flag"
+
+      # Races are WebSocket connections and rooms live in memory: let a
+      # connection last an hour, and keep both players on one instance.
+      timeout          = "3600s"
+      session_affinity = true
+      concurrency      = 1000
+      max_instances    = 1
+    }
   }
 }
 
