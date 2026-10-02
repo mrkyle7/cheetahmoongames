@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Your account · Cheetah Moon Games</title>
+    <meta name="description" content="Change the email or password on your Cheetah Moon account.">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        main {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 48px 16px 40px;
+        }
+
+        .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; font-weight: 700; }
+        .brand .moon { width: 36px; height: 36px; }
+        .brand:focus-visible { outline: 3px solid var(--moon); outline-offset: 4px; border-radius: 4px; }
+
+        .panel {
+            margin-top: 22px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 24px 24px 22px;
+        }
+
+        h1 { margin: 0; font-size: 28px; line-height: 1.15; }
+        h2 { margin: 0 0 4px; font-size: 19px; }
+        .sub { margin: 6px 0 0; color: var(--muted); }
+        .sub strong { color: var(--text); font-weight: 600; }
+        .lead { margin: 0 0 16px; color: var(--muted); font-size: 15px; }
+        .lead strong { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+
+        form { display: grid; gap: 16px; }
+        label { display: grid; gap: 6px; font-weight: 600; font-size: 15px; }
+        .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+        input {
+            font: inherit;
+            color: var(--text);
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 11px 12px;
+            width: 100%;
+        }
+        input:focus { outline: 3px solid var(--moon); outline-offset: 1px; border-color: transparent; }
+        input[aria-invalid="true"] { border-color: var(--danger); }
+
+        .password { position: relative; }
+        .password input { padding-right: 64px; }
+        .reveal {
+            position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+            font: inherit; font-size: 13px; font-weight: 600;
+            color: var(--muted); background: none; border: 0; padding: 6px 8px; cursor: pointer; border-radius: 4px;
+        }
+        .reveal:hover { color: var(--text); }
+        .reveal:focus-visible { outline: 2px solid var(--moon); }
+
+        .primary {
+            justify-self: start;
+            font: inherit; font-weight: 700;
+            color: #1a1405;
+            background: var(--moon);
+            border: 0; border-radius: 6px;
+            padding: 12px 18px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .primary:hover { background: #f7df8d; }
+        .primary:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+        .primary[disabled] { opacity: 0.6; cursor: progress; }
+
+        .msg { margin: 0; padding: 10px 12px; border-radius: 4px; }
+        .msg:empty { display: none; }
+        .msg.error { border-left: 4px solid var(--danger); background: rgba(255, 107, 107, 0.1); }
+        .msg.done { border-left: 4px solid #3fae74; background: rgba(63, 174, 116, 0.12); }
+
+        .link {
+            font: inherit; color: var(--moon); background: none; border: 0; padding: 0;
+            text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+        }
+        .link:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
+
+        .foot { margin: 22px 0 0; display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; color: var(--muted); }
+        .loading { margin: 22px 0 0; color: var(--muted); }
+
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <main>
+        <a class="brand" href="/" aria-label="Cheetah Moon Games home">
+            <span class="moon" aria-hidden="true"><span></span><span></span><span></span></span>
+            Cheetah Moon Games
+        </a>
+
+        <p class="loading" id="loading">Checking who's signed in&hellip;</p>
+        <p class="msg error" id="pageError" role="alert"></p>
+
+        <div id="account" hidden>
+            <section class="panel" aria-labelledby="title">
+                <h1 id="title">Your account</h1>
+                <p class="sub">Signed in as <strong id="name"></strong>. One account for every Cheetah Moon game.</p>
+            </section>
+
+            <section class="panel" aria-labelledby="emailTitle">
+                <h2 id="emailTitle">Email</h2>
+                <p class="lead" id="emailNow">Used only if you need to get back into your account.</p>
+                <form id="emailForm" novalidate>
+                    <label>New email
+                        <input id="newEmail" name="email" type="email" autocomplete="email" required maxlength="254">
+                    </label>
+                    <p class="msg" id="emailMsg" role="status" aria-live="polite"></p>
+                    <button class="primary" type="submit">Change email</button>
+                </form>
+            </section>
+
+            <section class="panel" aria-labelledby="passwordTitle">
+                <h2 id="passwordTitle">Password</h2>
+                <form id="passwordForm" novalidate>
+                    <label>Current password
+                        <span class="password">
+                            <input id="currentPassword" name="current" type="password" autocomplete="current-password" required maxlength="128">
+                            <button class="reveal" type="button" aria-controls="currentPassword" aria-label="Show password">Show</button>
+                        </span>
+                    </label>
+                    <label>New password
+                        <span class="hint" id="passwordHint">At least 8 characters, with a letter and a number.</span>
+                        <span class="password">
+                            <input id="newPassword" name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128" aria-describedby="passwordHint">
+                            <button class="reveal" type="button" aria-controls="newPassword" aria-label="Show password">Show</button>
+                        </span>
+                    </label>
+                    <p class="msg" id="passwordMsg" role="status" aria-live="polite"></p>
+                    <button class="primary" type="submit">Change password</button>
+                </form>
+            </section>
+
+            <p class="foot">
+                <a class="link" href="/">&larr; All games</a>
+                <button class="link" type="button" id="signOut">Sign out</button>
+            </p>
+        </div>
+    </main>
+    <script>
+        (function () {
+            const $ = (id) => document.getElementById(id);
+            const GENERIC = 'Something went wrong. Please try again.';
+            const OFFLINE = "We couldn't reach the server. Check your connection and try again.";
+
+            function showEmail(email) {
+                const p = $('emailNow');
+                p.textContent = '';
+                if (email) {
+                    const b = document.createElement('strong');
+                    b.textContent = email;
+                    p.append('Your account’s email is ', b, '. It’s only used if you need to get back into your account.');
+                } else {
+                    p.textContent = 'Used only if you need to get back into your account.';
+                }
+            }
+
+            function say(el, text, kind) {
+                el.className = 'msg' + (kind ? ' ' + kind : '');
+                el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+                el.textContent = text;
+            }
+
+            function mark(input) {
+                document.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+                if (input) { input.setAttribute('aria-invalid', 'true'); input.focus(); }
+            }
+
+            // Not signed in: sign in first, then come back here.
+            function toSignIn() {
+                location.replace('/login?next=' + encodeURIComponent('/profile'));
+            }
+
+            fetch('/api/account/me').then((r) => r.json()).then((me) => {
+                if (me.error) throw new Error(me.error);
+                if (!me.signedIn) return toSignIn();
+                $('name').textContent = me.name;
+                showEmail(me.email);
+                $('loading').hidden = true;
+                $('account').hidden = false;
+            }).catch(() => {
+                $('loading').hidden = true;
+                $('pageError').textContent = "Your account can't be loaded right now. Please try again in a minute.";
+            });
+
+            document.querySelectorAll('.reveal').forEach((b) => {
+                b.addEventListener('click', () => {
+                    const input = $(b.getAttribute('aria-controls'));
+                    const show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    b.textContent = show ? 'Hide' : 'Show';
+                    b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                });
+            });
+
+            async function post(form, path, body, msg) {
+                const button = form.querySelector('.primary');
+                button.disabled = true;
+                say(msg, '');
+                try {
+                    const r = await fetch(path, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.status === 401) {
+                        say(msg, data.error || GENERIC, 'error');
+                        setTimeout(toSignIn, 1800);
+                        return null;
+                    }
+                    if (!r.ok) {
+                        say(msg, data.error || GENERIC, 'error');
+                        return { failed: true, field: data.field };
+                    }
+                    return data;
+                } catch (e) {
+                    say(msg, OFFLINE, 'error');
+                    return null;
+                } finally {
+                    button.disabled = false;
+                }
+            }
+
+            $('emailForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const email = f.email.value.trim();
+                if (!email || !f.email.checkValidity()) {
+                    say($('emailMsg'), 'Please enter an email address like name@example.com.', 'error');
+                    return mark(f.email);
+                }
+                mark(null);
+                const data = await post(f, '/api/account/email', { email }, $('emailMsg'));
+                if (!data) return;
+                if (data.failed) return mark(f.email);
+                showEmail(data.email || email);
+                f.reset();
+                say($('emailMsg'), 'Your email is changed.', 'done');
+            });
+
+            $('passwordForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const msg = $('passwordMsg');
+                if (!f.current.value) { say(msg, 'Please enter your current password.', 'error'); return mark(f.current); }
+                const pw = f.password.value;
+                if (pw.length < 8) { say(msg, 'Your new password needs at least 8 characters.', 'error'); return mark(f.password); }
+                if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) {
+                    say(msg, 'Your new password needs at least one letter and one number.', 'error');
+                    return mark(f.password);
+                }
+                mark(null);
+                const data = await post(f, '/api/account/password', { current: f.current.value, password: pw }, msg);
+                if (!data) return;
+                if (data.failed) return mark(data.field === 'current' ? f.current : f.password);
+                f.reset();
+                say(msg, 'Your password is changed. Use the new one next time you sign in.', 'done');
+            });
+
+            $('signOut').addEventListener('click', async () => {
+                await fetch('/api/account/logout', { method: 'POST' }).catch(() => {});
+                location.assign('/');
+            });
+        })();
+    </script>
+</body>
+</html>

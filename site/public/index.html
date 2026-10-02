@@ -224,6 +224,9 @@
                 const name = document.createElement('strong');
                 name.textContent = me.name;
                 who.append('Signed in as ', name);
+                const account = document.createElement('a');
+                account.href = '/profile';
+                account.textContent = 'Your account';
                 const out = document.createElement('button');
                 out.type = 'button';
                 out.textContent = 'Sign out';
@@ -232,7 +235,7 @@
                     signedOut();
                     bar.querySelector('a').focus();
                 });
-                bar.append(who, out);
+                bar.append(who, account, out);
             }).catch(signedOut);
         })();
     </script>

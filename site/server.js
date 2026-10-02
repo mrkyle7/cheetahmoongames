@@ -5,6 +5,7 @@
 //   /            the home page (public/index.html)
 //   /login       sign in or create a Cheetah Moon account (public/login.html)
 //   /reset-password  choose a new password from an emailed link
+//   /profile     your account: change your email or password (public/profile.html)
 //   /api/account/*  accounts, shared by every game (see account.js)
 //   /assets/*    its images
 //   /sw.js       a service worker that unregisters itself (see below)
@@ -123,6 +124,10 @@ function createServer(env = process.env, { fetchImpl } = {}) {
 
     if (p === '/login' && read) {
       return serveFile(req, res, path.join(PUBLIC_DIR, 'login.html'), { 'Cache-Control': NO_CACHE });
+    }
+
+    if (p === '/profile' && read) {
+      return serveFile(req, res, path.join(PUBLIC_DIR, 'profile.html'), { 'Cache-Control': NO_CACHE });
     }
 
     if (p === '/reset-password' && read) {

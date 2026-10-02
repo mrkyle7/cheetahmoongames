@@ -165,7 +165,7 @@ test('me reports the signed-in player, passing only the login cookie on', async 
     const res = await req('GET', '/api/account/me?next=https%3A%2F%2Fevil.example%2F', {
       headers: { cookie: 'theme=dark; userjwt=tok' },
     });
-    assert.deepStrictEqual(res.json, { signedIn: true, name: 'Ann', id: 'u1', next: '/' });
+    assert.deepStrictEqual(res.json, { signedIn: true, name: 'Ann', id: 'u1', next: '/', email: 'ann@example.com' });
     assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=tok');
   });
 });
@@ -314,5 +314,116 @@ test('expired links and refused passwords are explained', async () => {
     const res = await req('POST', '/api/account/reset', { body: { password: 'p' } });
     assert.strictEqual(res.status, 400);
     assert.strictEqual(bartenders.calls.length, 0, 'no token, nothing sent');
+  });
+});
+
+// --- The account page: email and password ------------------------------------
+
+test('serves the account page', async () => {
+  await withServer(ENV, fakeBartenders({}), async (req) => {
+    const res = await req('GET', '/profile');
+    assert.strictEqual(res.status, 200);
+    assert.match(res.body, /id="emailForm"/);
+    assert.match(res.body, /id="passwordForm"/);
+    assert.match(res.headers['cache-control'], /no-store/);
+  });
+});
+
+test('who is signed in includes their email for the account page', async () => {
+  const bartenders = fakeBartenders({
+    'GET /userDetails': { body: { username: 'Ann', id: 'u1', email: 'ann@example.com' } },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me', { headers: { Cookie: 'userjwt=tok' } });
+    assert.strictEqual(res.json.email, 'ann@example.com');
+    assert.strictEqual(res.json.name, 'Ann');
+  });
+});
+
+test('changing email passes the login cookie on to Bartenders', async () => {
+  const bartenders = fakeBartenders({ 'PATCH /v1/users/me/email': { body: { message: 'ok' } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/email', {
+      headers: { Cookie: 'userjwt=tok' }, body: { email: ' new@example.com ' },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, { ok: true, email: 'new@example.com' });
+    assert.deepStrictEqual(bartenders.calls[0].body, { new_email: 'new@example.com' });
+    assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=tok');
+  });
+});
+
+test('a bad new email gets a player-friendly message', async () => {
+  const bartenders = fakeBartenders({
+    'PATCH /v1/users/me/email': { status: 400, body: { error: 'Invalid email format' } },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/email', {
+      headers: { Cookie: 'userjwt=tok' }, body: { email: 'nope@' },
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.json.error, 'Invalid email format.');
+  });
+});
+
+test('changing your account needs you signed in', async () => {
+  const bartenders = fakeBartenders({});
+  await withServer(ENV, bartenders, async (req) => {
+    for (const [path, body] of [['/api/account/email', { email: 'a@b.co' }], ['/api/account/password', { current: 'a', password: 'b' }]]) {
+      const res = await req('POST', path, { body });
+      assert.strictEqual(res.status, 401);
+      assert.match(res.json.error, /Sign in again/);
+    }
+    assert.strictEqual(bartenders.calls.length, 0);
+  });
+});
+
+test('an expired login is told to sign in again', async () => {
+  const bartenders = fakeBartenders({ 'PATCH /v1/users/me/password': { status: 401, body: { error: 'Token expired' } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/password', {
+      headers: { Cookie: 'userjwt=old' }, body: { current: 'pw12345678', password: 'newpass12' },
+    });
+    assert.strictEqual(res.status, 401);
+    assert.doesNotMatch(res.body, /Token expired/);
+  });
+});
+
+test('changing password sends the old and new password', async () => {
+  const bartenders = fakeBartenders({ 'PATCH /v1/users/me/password': { body: { message: 'ok' } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/password', {
+      headers: { Cookie: 'userjwt=tok' }, body: { current: 'oldpass12', password: 'newpass12' },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(bartenders.calls[0].body, { old_password: 'oldpass12', new_password: 'newpass12' });
+  });
+});
+
+test('a wrong current password points at that field', async () => {
+  const bartenders = fakeBartenders({
+    'PATCH /v1/users/me/password': { status: 400, body: { error: 'Incorrect password' } },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/password', {
+      headers: { Cookie: 'userjwt=tok' }, body: { current: 'wrong', password: 'newpass12' },
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.json.field, 'current');
+    assert.match(res.json.error, /current password/);
+  });
+});
+
+test('a weak new password gets the rule it broke', async () => {
+  const bartenders = fakeBartenders({
+    'PATCH /v1/users/me/password': { status: 400, body: { error: 'Password must contain at least one number' } },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/password', {
+      headers: { Cookie: 'userjwt=tok' }, body: { current: 'oldpass12', password: 'abcdefghij' },
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.json.field, 'password');
+    assert.strictEqual(res.json.error, 'Password must contain at least one number.');
   });
 });

@@ -12,7 +12,9 @@
 //   POST /api/account/logout
 //   POST /api/account/forgot      { email, next }: email a password reset link
 //   POST /api/account/reset       { token, password, next }: set a new password
-//   GET  /api/account/me          who the login cookie belongs to
+//   GET  /api/account/me          who the login cookie belongs to (and their email)
+//   POST /api/account/email       { email }: change the signed-in player's email
+//   POST /api/account/password    { current, password }: change their password
 //   GET  /api/account/keys/:kid   the public key that checks a login cookie
 //
 // Bartenders answers login and register with the `userjwt` cookie for the
@@ -45,6 +47,8 @@ const RENAMED_MESSAGES = {
 };
 const RESET_LINK_INVALID = 'This reset link has expired or has already been used. Ask for a new one.';
 const SIGN_IN_FAILED = "That name and password don't match an account.";
+const SIGN_IN_AGAIN = 'Your sign-in has run out. Sign in again to change your account.';
+const WRONG_PASSWORD = "That isn't your current password.";
 const UNAVAILABLE = "Sign-in isn't working right now. Please try again in a minute.";
 
 function friendlyError(message, fallback) {
@@ -213,9 +217,52 @@ function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fe
     const r = await upstream('/userDetails', { cookie });
     if (r.status === 200 && r.json && r.json.username) {
       const next = safeNext(url.searchParams.get('next') || '/', cookieDomain);
-      return send(200, { signedIn: true, name: r.json.username, id: r.json.id, next });
+      const body = { signedIn: true, name: r.json.username, id: r.json.id, next };
+      if (typeof r.json.email === 'string') body.email = r.json.email;
+      return send(200, body);
     }
     if (r.status === 401 || r.status === 404) return send(200, { signedIn: false });
+    return send(502, { error: UNAVAILABLE });
+  }
+
+  // Changing the signed-in player's email or password: Bartenders checks the
+  // login cookie, so a missing or expired one means signing in again.
+  async function changeEmail(req, send) {
+    const cookie = loginCookieValue(req);
+    if (!cookie) return send(401, { error: SIGN_IN_AGAIN });
+    const body = await readJson(req);
+    const email = body && typeof body.email === 'string' ? body.email.trim() : '';
+    if (!email) return send(400, { error: 'Please enter your new email address.' });
+    const r = await upstream('/v1/users/me/email', { method: 'PATCH', body: { new_email: email }, cookie });
+    if (r.status === 200) return send(200, { ok: true, email });
+    if (r.status === 401) return send(401, { error: SIGN_IN_AGAIN });
+    if (r.status === 400 || r.status === 422) {
+      const message = r.json && typeof r.json.error === 'string' ? r.json.error : '';
+      return send(400, { error: friendlyError(message, "That email can't be used. Check it and try again.") });
+    }
+    return send(502, { error: UNAVAILABLE });
+  }
+
+  async function changePassword(req, send) {
+    const cookie = loginCookieValue(req);
+    if (!cookie) return send(401, { error: SIGN_IN_AGAIN });
+    const body = await readJson(req);
+    const current = body && typeof body.current === 'string' ? body.current : '';
+    const password = body && typeof body.password === 'string' ? body.password : '';
+    if (!current) return send(400, { error: 'Please enter your current password.' });
+    if (!password) return send(400, { error: 'Please choose a new password.' });
+    const r = await upstream('/v1/users/me/password', {
+      method: 'PATCH',
+      body: { old_password: current, new_password: password },
+      cookie,
+    });
+    if (r.status === 200) return send(200, { ok: true });
+    if (r.status === 401) return send(401, { error: SIGN_IN_AGAIN });
+    if (r.status === 400 || r.status === 422) {
+      const message = r.json && typeof r.json.error === 'string' ? r.json.error : '';
+      if (message === 'Incorrect password') return send(400, { error: WRONG_PASSWORD, field: 'current' });
+      return send(400, { error: friendlyError(message, "That password can't be used. Try another."), field: 'password' });
+    }
     return send(502, { error: UNAVAILABLE });
   }
 
@@ -260,6 +307,8 @@ function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fe
     else if (p === '/api/account/forgot' && req.method === 'POST') work = forgot(req, send);
     else if (p === '/api/account/reset' && req.method === 'POST') work = reset(req, send);
     else if (p === '/api/account/me' && req.method === 'GET') work = me(req, url, send);
+    else if (p === '/api/account/email' && req.method === 'POST') work = changeEmail(req, send);
+    else if (p === '/api/account/password' && req.method === 'POST') work = changePassword(req, send);
     else if (p.startsWith('/api/account/keys/') && req.method === 'GET') work = key(p.slice('/api/account/keys/'.length), send);
     else {
       send(404, { error: 'Not found' });
