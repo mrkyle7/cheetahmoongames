@@ -22,3 +22,8 @@ output "secrets" {
   value       = local.secret_ids
   description = "Secret Manager secret for each secret environment variable"
 }
+
+output "run_service_account" {
+  value       = google_service_account.run.email
+  description = "Account the game runs as; grant it access to anything else the game needs"
+}

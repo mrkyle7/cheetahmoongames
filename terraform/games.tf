@@ -66,6 +66,9 @@ locals {
       max_instances = 1
       timeout       = "3600s"
       concurrency   = 1000
+
+      # Tables are saved here at the end of every turn (kings-keep.tf).
+      env = { GAMES_BUCKET = "${var.project_name}-kings-keep" }
     }
   }
 }
