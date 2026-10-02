@@ -33,6 +33,7 @@ Check what's done before starting. Ask the user if unsure, and update these boxe
 - **Its own icons.** Replace the placeholder `public/icon.svg` (the favicon) with the game's own art, then render the PNGs in `public/icons/` from it; see "Icons and installing" in ADDING_A_GAME.md. Every page links the favicon, the Apple icon and the manifest.
 - **Installable.** Keep `public/manifest.webmanifest` (name and colours in step with the game), `public/sw.js` and `public/offline.html`, and register the service worker on every page. The service worker must not cache the game itself, only the offline page.
 - **Don't log, store or forward the `userjwt` cookie.** Only `auth.js` reads it. Keep `auth.js` as it is in the skeleton; fixes to it go in mrkyle7/cheetahmoongames first.
+- **Notifications** (telling players it's their turn): build them as "Notifications" in ADDING_A_GAME.md describes. The server makes its own Web Push keys and keeps them in the game's storage; never put them in Secret Manager or GitHub secrets.
 - **Instances:** by default up to 3 can run, and players may land on different ones. If players must meet on the same server, for example rooms kept in memory, set `max_instances = 1` (and, for WebSockets, `timeout`, `concurrency` and `session_affinity`) in the games.tf entry. The Boxer does this.
 
 ## Commands

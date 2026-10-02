@@ -2,8 +2,9 @@
 # Bartenders of Corfu — bartenders.cheetahmoongames.com
 # Deployed by mrkyle7/bartenders-of-corfu as bartenders-deploy
 # (image: docker-us/bartenders).
-# Supabase is external; its URL/key, the VAPID keys and the Brevo API key
-# live in Secret Manager.
+# Supabase is external; its URL/key and the Brevo API key live in Secret
+# Manager. The keys that sign its notifications are in its database, made by
+# the server itself (see "Notifications" in ADDING_A_GAME.md).
 # ---------------------------------------------------------------------------
 
 resource "google_service_account" "bartenders_run" {
@@ -13,24 +14,6 @@ resource "google_service_account" "bartenders_run" {
 }
 
 # --- Secrets ------------------------------------------------------------------
-
-resource "google_secret_manager_secret" "vapid_private_key" {
-  project   = var.project_name
-  secret_id = "vapid-private-key"
-  replication {
-    auto {}
-  }
-  depends_on = [google_project_service.secretmanager]
-}
-
-resource "google_secret_manager_secret" "vapid_public_key" {
-  project   = var.project_name
-  secret_id = "vapid-public-key"
-  replication {
-    auto {}
-  }
-  depends_on = [google_project_service.secretmanager]
-}
 
 resource "google_secret_manager_secret" "supabase_url" {
   project   = var.project_name
@@ -81,20 +64,6 @@ resource "google_secret_manager_secret_iam_member" "run_reads_brevo" {
 }
 
 # Cloud Run reads secrets at container start
-resource "google_secret_manager_secret_iam_member" "run_reads_vapid_private" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.vapid_private_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.bartenders_run.email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "run_reads_vapid_public" {
-  project   = var.project_name
-  secret_id = google_secret_manager_secret.vapid_public_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.bartenders_run.email}"
-}
-
 resource "google_secret_manager_secret_iam_member" "run_reads_url" {
   project   = var.project_name
   secret_id = google_secret_manager_secret.supabase_url.secret_id
@@ -173,26 +142,6 @@ resource "google_cloud_run_v2_service" "bartenders" {
         }
       }
 
-      env {
-        name = "VAPID_PRIVATE_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.vapid_private_key.secret_id
-            version = "latest"
-          }
-        }
-      }
-
-      env {
-        name = "VAPID_PUBLIC_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.vapid_public_key.secret_id
-            version = "latest"
-          }
-        }
-      }
-
       # Share the login cookie across the apex and all subdomains, so a login
       # carries over (see app/auth_cookie.py).
       env {
@@ -248,8 +197,6 @@ resource "google_cloud_run_v2_service" "bartenders" {
     google_project_service.cloudrun,
     google_secret_manager_secret_iam_member.run_reads_url,
     google_secret_manager_secret_iam_member.run_reads_key,
-    google_secret_manager_secret_iam_member.run_reads_vapid_private,
-    google_secret_manager_secret_iam_member.run_reads_vapid_public,
     google_secret_manager_secret_iam_member.run_reads_brevo,
     google_secret_manager_secret_version.brevo_api_key_placeholder,
     google_artifact_registry_repository_iam_member.run_pulls_images,
