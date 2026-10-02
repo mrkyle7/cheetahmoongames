@@ -53,6 +53,20 @@ locals {
       concurrency      = 1000
       max_instances    = 1
     }
+
+    kings-keep = {
+      name        = "kings-keep"
+      subdomain   = "kings-keep"
+      github_repo = "mrkyle7/kings-keep"
+
+      # Tables live in memory, so every player must reach the same instance.
+      # Each open page keeps a server-sent events stream open for updates:
+      # let one last an hour (the page reconnects after) and let one
+      # instance hold many.
+      max_instances = 1
+      timeout       = "3600s"
+      concurrency   = 1000
+    }
   }
 }
 
