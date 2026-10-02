@@ -215,6 +215,7 @@ Players have one Cheetah Moon account for every game. They sign in or create it 
 ## Things to know
 
 - **Games that need secrets or a database.** See [below](#games-that-need-secrets-or-a-database).
+- **Notifications** ("it's your turn", even with the game closed). See [Notifications](#notifications): the server makes its own keys, so they need no secrets.
 - **Removing a game.** Delete its entry in `games.tf` and its card. The plan will delete its service, subdomain and DNS record, so the merge run refuses to apply it. Run the workflow by hand (Actions → Deploy → Run workflow) with **allow_destroy** ticked. This also deletes the game's image registry and every image in it. Archive or delete its repo separately.
 - **Renaming a game** (`name` or `subdomain`) replaces its service or domain mapping, which also needs **allow_destroy**. A new subdomain gets a new certificate, so expect a gap while it's issued.
 - **Changing the skeleton.** Edit `scripts/game-template/`. Every pull request here generates a test game from it and runs that game's tests and container, so a broken template shows up before merging. Existing games don't change; update them by hand if they need the fix.
@@ -240,6 +241,22 @@ A game that keeps anything beyond one server's life, like saved games or scores,
 Anything that isn't a secret or a Supabase project (a storage bucket, say) is new infrastructure: add it in a file of its own in `terraform/`, as `bartenders.tf` does for Bartenders, and grant `<name>-run` access to just that.
 
 Only one server should write to a game's database at a time. If the game keeps state in memory, like Bezique, keep `max_instances = 1`, and have a starting server take over from the old one cleanly during a deploy. Bezique's `supabase/migrations` and `src/bezique/persistence.js` show one way.
+
+## Notifications
+
+Turn-based games should tell players when it's their move, even with the game closed, with [Web Push](https://developer.mozilla.org/en-US/docs/Web/API/Push_API). Bartenders of Corfu, Bezique and King's Keep all do. Build it this way by default:
+
+- **The keys are made by the server, not set as secrets.** Web Push signs each notification with a key pair (VAPID keys). The first server that needs a pair makes one and saves it in the game's own storage. Every later server reads that pair, so devices keep working across deploys. If two servers start at once, only the first pair saved is kept, and both use it: save with "insert unless one exists", then read back.
+  - With a database: a one-row `vapid_keys` table, with row-level security on so only the server's secret key can read it. Bezique (`src/bezique/push.js`, `pushFromStore()`) and Bartenders (`app/push.py`, `get_keys()`) do this.
+  - With a bucket and no database: a file such as `config/vapid.json`, written with `ifGenerationMatch=0`. King's Keep does this (`src/push.js`, `vapidKeys()`). Keep any clean-up rule on the bucket away from it.
+  - Load the pair when the server starts, not at the first notification, so a problem shows up straight away.
+- **Don't put them in Secret Manager.** There's nothing to set up, nothing for a deploy to copy, and no cost: Secret Manager is only free up to six secret versions across the whole project. If a game has keys in Secret Manager from before, have its server save those to its storage when it finds none there. Deploy that, check the pair is saved, then remove the secrets in Terraform (a deletion, so it needs the **allow_destroy** run).
+- **Devices** (each browser's subscription: a push service URL and its keys) go in the same storage, keyed by that URL, so a device belongs to whoever turned notifications on there last. Only accept `https` URLs on named hosts, since the server sends to them. Forget a device when its push service answers 404 or 410.
+- **The page** subscribes with the server's public key, and subscribes again when that key changes; a subscription made with an old key gets nothing. Bezique's `notifications` in `public/common.js` is the one to copy. Offer it as a "Turn on notifications" button, never on page load. On an iPhone, notifications only work once the game is on the Home Screen.
+- **Who's told:** only players who aren't looking. With notifications on, a page closes its live connection while it's hidden, so an open connection means the player is there. Never notify bots. A server that loads saved games treats their state as already told, so a deploy doesn't repeat anything.
+- **The service worker** shows each notification, one per game at a time (`tag`), and opens the game when it's tapped. A game page's service worker must still never cache the game itself.
+
+The libraries are `web-push` for Node and `pywebpush` for Python. The packages are the only dependency; nothing in this repo changes for a game to send notifications.
 
 ## If something goes wrong
 

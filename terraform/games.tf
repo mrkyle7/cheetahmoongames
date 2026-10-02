@@ -35,10 +35,10 @@ locals {
       timeout       = "3600s"
       concurrency   = 1000
 
-      # Games are saved in the bezique Supabase project, and the VAPID keys
-      # sign players' notifications (Web Push). The workflow in
-      # mrkyle7/bezique fills these in from its GitHub secrets.
-      secrets = ["SUPABASE_URL", "SUPABASE_KEY", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"]
+      # Games are saved in the bezique Supabase project. The workflow in
+      # mrkyle7/bezique fills these in from its GitHub secrets. The keys that
+      # sign its notifications are in that database, made by the server.
+      secrets = ["SUPABASE_URL", "SUPABASE_KEY"]
     }
 
     catch-the-flag = {
