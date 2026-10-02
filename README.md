@@ -56,6 +56,7 @@ site/                  the home page: a small Node server with no dependencies
   public/login.html    sign in or create an account, for every game
   server.js            serves the pages; redirects Bartenders' old URLs on this domain
   public/reset-password.html  choose a new password from an emailed link
+  public/profile.html  your account: change your email or password
   account.js           /api/account/*: sign-in, passed on to Bartenders
 terraform/
   games.tf             the list of games (edit this to add one)
@@ -93,11 +94,11 @@ npm test
 BARTENDERS_URL=https://bartenders.cheetahmoongames.com npm start   # http://localhost:8080
 ```
 
-**Signing in.** `/login` is where players sign in, create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
+**Signing in.** `/login` is where players sign in, create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. `/profile` is a signed-in player's account page, for changing their email or password (Bartenders' `/profile` redirects here). `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
 
 Besides that, the server handles traffic for Bartenders, which used to live on this domain:
 
-- Every path other than `/`, `/login`, `/api/account/*`, `/assets/*`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
+- Every path other than `/`, `/login`, `/reset-password`, `/profile`, `/api/account/*`, `/assets/*`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
 - `/sw.js` serves a service worker that unregisters itself, which clears out the one Bartenders installed on this domain.
 - A Bartenders login cookie from before the move only belongs to this domain. The server moves it onto `COOKIE_DOMAIN` (the whole of `cheetahmoongames.com`), so players stay logged in when they follow a link to the game.
 
