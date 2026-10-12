@@ -105,6 +105,7 @@
             <section class="panel" aria-labelledby="title">
                 <h1 id="title">Your account</h1>
                 <p class="sub">Signed in as <strong id="name"></strong>. One account for every Cheetah Moon game.</p>
+                <p class="sub" id="googleLinked" hidden>Your Google account is linked: you can sign in with Google.</p>
             </section>
 
             <section class="panel" aria-labelledby="emailTitle">
@@ -121,6 +122,8 @@
 
             <section class="panel" aria-labelledby="passwordTitle">
                 <h2 id="passwordTitle">Password</h2>
+                <p class="lead" id="noPassword" hidden>You sign in with Google, so this account has no password.
+                    To sign in with your name and a password as well, <a class="link" href="/login?mode=forgot&amp;next=%2Fprofile">set a password with an emailed link</a>.</p>
                 <form id="passwordForm" novalidate>
                     <label>Current password
                         <span class="password">
@@ -185,6 +188,10 @@
                 if (!me.signedIn) return toSignIn();
                 $('name').textContent = me.name;
                 showEmail(me.email);
+                $('googleLinked').hidden = !me.google;
+                // No current password to give: set one with a reset link instead.
+                $('noPassword').hidden = me.hasPassword !== false;
+                $('passwordForm').hidden = me.hasPassword === false;
                 $('loading').hidden = true;
                 $('account').hidden = false;
             }).catch(() => {

@@ -85,6 +85,12 @@ resource "google_cloud_run_v2_service" "site" {
         name  = "COOKIE_DOMAIN"
         value = var.domain_name
       }
+
+      # Shows "Sign in with Google" on the sign-in page.
+      env {
+        name  = "GOOGLE_CLIENT_ID"
+        value = var.google_client_id
+      }
     }
   }
 

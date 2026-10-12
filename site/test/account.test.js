@@ -427,3 +427,89 @@ test('a weak new password gets the rule it broke', async () => {
     assert.strictEqual(res.json.error, 'Password must contain at least one number.');
   });
 });
+
+// --- Signing in with Google -----------------------------------------------------
+
+const GOOGLE_ENV = { ...ENV, GOOGLE_CLIENT_ID: 'abc.apps.googleusercontent.com' };
+
+test('the sign-in page can read the Google client ID', async () => {
+  await withServer(GOOGLE_ENV, fakeBartenders({}), async (req) => {
+    const res = await req('GET', '/api/account/google');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, { clientId: 'abc.apps.googleusercontent.com' });
+  });
+  await withServer(ENV, fakeBartenders({}), async (req) => {
+    const res = await req('GET', '/api/account/google');
+    assert.deepStrictEqual(res.json, { clientId: null });
+  });
+});
+
+test('signing in with Google passes the token on and the shared cookie back', async () => {
+  const bartenders = fakeBartenders({
+    'POST /v1/auth/google': { status: 201, body: { username: 'Ada', id: 'u1', created: true }, cookies: [SHARED_COOKIE] },
+  });
+  await withServer(GOOGLE_ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/google', {
+      body: { credential: 'google.id.token', next: 'https://boxer.cheetahmoongames.com/table' },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, {
+      ok: true, name: 'Ada', created: true, next: 'https://boxer.cheetahmoongames.com/table',
+    });
+    assert.deepStrictEqual(bartenders.calls[0].body, { credential: 'google.id.token' });
+    assert.ok(res.headers['set-cookie'].includes(SHARED_COOKIE));
+  });
+});
+
+test('a Google sign-in for another website goes home instead', async () => {
+  const bartenders = fakeBartenders({
+    'POST /v1/auth/google': { body: { username: 'Ada', id: 'u1', created: false }, cookies: [SHARED_COOKIE] },
+  });
+  await withServer(GOOGLE_ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/google', { body: { credential: 't', next: 'https://evil.example/' } });
+    assert.strictEqual(res.json.next, '/');
+  });
+});
+
+test("Bartenders' reasons for refusing a Google sign-in reach the player; anything else doesn't", async () => {
+  const linked = 'The account for that email is already linked to a different Google account. Sign in with your name and password instead.';
+  for (const [upstream, status, error] of [
+    [{ status: 403, body: { error: linked } }, 403, linked],
+    [{ status: 403, body: { error: 'relation "users" does not exist' } }, 403, "Google sign-in didn't work. Please try again."],
+    [{ status: 401, body: { error: 'whatever' } }, 401, "Google sign-in didn't work. Please try again."],
+    [{ status: 503, body: { error: 'Google sign-in is not set up' } }, 503, "Google sign-in isn't available right now. Sign in with your name and password instead."],
+    [{ status: 500, body: {} }, 502, "Sign-in isn't working right now. Please try again in a minute."],
+  ]) {
+    await withServer(GOOGLE_ENV, fakeBartenders({ 'POST /v1/auth/google': upstream }), async (req) => {
+      const res = await req('POST', '/api/account/google', { body: { credential: 't' } });
+      assert.strictEqual(res.status, status);
+      assert.strictEqual(res.json.error, error);
+      assert.strictEqual(res.headers['set-cookie'], undefined);
+    });
+  }
+});
+
+test('Google sign-in is off without a client ID, and needs a token', async () => {
+  const bartenders = fakeBartenders({});
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/google', { body: { credential: 't' } });
+    assert.strictEqual(res.status, 503);
+  });
+  await withServer(GOOGLE_ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/google', { body: {} });
+    assert.strictEqual(res.status, 400);
+  });
+  assert.strictEqual(bartenders.calls.length, 0);
+});
+
+test('who is signed in says whether the account has a password and a linked Google account', async () => {
+  const bartenders = fakeBartenders({
+    'GET /userDetails': { body: { username: 'Ada', id: 'u1', email: 'ada@example.com', has_password: false, google_linked: true } },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me', { headers: { Cookie: 'userjwt=tok' } });
+    assert.deepStrictEqual(res.json, {
+      signedIn: true, name: 'Ada', id: 'u1', next: '/', email: 'ada@example.com', hasPassword: false, google: true,
+    });
+  });
+});

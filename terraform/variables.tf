@@ -103,3 +103,9 @@ variable "email_from_name" {
   default     = "Cheetah Moon Games"
   description = "Display name for account emails."
 }
+
+variable "google_client_id" {
+  type        = string
+  default     = ""
+  description = "OAuth client ID for \"Sign in with Google\" on the sign-in page (made by hand, see README). Not a secret. Empty turns Google sign-in off."
+}

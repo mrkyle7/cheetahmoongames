@@ -9,6 +9,8 @@
 //
 //   POST /api/account/login       { username, password, next }
 //   POST /api/account/register    { username, email, password, next }
+//   GET  /api/account/google      { clientId }: for the "Sign in with Google" button
+//   POST /api/account/google      { credential, next }: sign in with Google's ID token
 //   POST /api/account/logout
 //   POST /api/account/forgot      { email, next }: email a password reset link
 //   POST /api/account/reset       { token, password, next }: set a new password
@@ -50,6 +52,14 @@ const SIGN_IN_FAILED = "That name and password don't match an account.";
 const SIGN_IN_AGAIN = 'Your sign-in has run out. Sign in again to change your account.';
 const WRONG_PASSWORD = "That isn't your current password.";
 const UNAVAILABLE = "Sign-in isn't working right now. Please try again in a minute.";
+const GOOGLE_FAILED = "Google sign-in didn't work. Please try again.";
+const GOOGLE_OFF = "Google sign-in isn't available right now. Sign in with your name and password instead.";
+// Why Bartenders turned a Google sign-in away, written for players.
+const GOOGLE_MESSAGES = new Set([
+  "Google hasn't confirmed that email address is yours, so it can't be used to sign in. Sign in with your name and password instead.",
+  "The account for that email isn't active.",
+  'The account for that email is already linked to a different Google account. Sign in with your name and password instead.',
+]);
 
 function friendlyError(message, fallback) {
   if (PLAYER_MESSAGES.has(message)) return message.endsWith('.') ? message : message + '.';
@@ -105,7 +115,7 @@ function readJson(req) {
   });
 }
 
-function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fetch }) {
+function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetchImpl = globalThis.fetch }) {
   const keyCache = new Map();
 
   async function upstream(path, { method = 'GET', body, cookie } = {}) {
@@ -151,6 +161,31 @@ function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fe
     if (kind === 'register' && (r.status === 400 || r.status === 422)) {
       const message = r.json && typeof r.json.error === 'string' ? r.json.error : '';
       return send(400, { error: friendlyError(message, "We couldn't create that account. Check the details and try again.") });
+    }
+    return send(502, { error: UNAVAILABLE });
+  }
+
+  // Google's "Sign in with Google" button gives the page an ID token (a JWT
+  // Google signed). Bartenders checks it and signs in the account linked to
+  // that Google account, or the one with the same email (linking the two), or
+  // makes a new one.
+  async function google(req, send) {
+    if (!googleClientId) return send(503, { error: GOOGLE_OFF });
+    const body = await readJson(req);
+    const credential = body && typeof body.credential === 'string' ? body.credential : '';
+    if (!credential || credential.length > 4096) return send(400, { error: GOOGLE_FAILED });
+    const next = safeNext(body.next, cookieDomain);
+    const r = await upstream('/v1/auth/google', { method: 'POST', body: { credential } });
+    if (r.status === 200 || r.status === 201) {
+      const name = r.json && r.json.username;
+      const created = Boolean(r.json && r.json.created);
+      return send(200, { ok: true, name, created, next }, { 'Set-Cookie': withLegacyCleared(r.setCookies) });
+    }
+    if (r.status === 503) return send(503, { error: GOOGLE_OFF });
+    if (r.status === 400 || r.status === 401 || r.status === 422) return send(401, { error: GOOGLE_FAILED });
+    if (r.status === 403) {
+      const message = r.json && typeof r.json.error === 'string' ? r.json.error : '';
+      return send(403, { error: GOOGLE_MESSAGES.has(message) ? message : GOOGLE_FAILED });
     }
     return send(502, { error: UNAVAILABLE });
   }
@@ -219,6 +254,9 @@ function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fe
       const next = safeNext(url.searchParams.get('next') || '/', cookieDomain);
       const body = { signedIn: true, name: r.json.username, id: r.json.id, next };
       if (typeof r.json.email === 'string') body.email = r.json.email;
+      // How the account signs in: an account made with Google has no password.
+      if (typeof r.json.has_password === 'boolean') body.hasPassword = r.json.has_password;
+      if (typeof r.json.google_linked === 'boolean') body.google = r.json.google_linked;
       return send(200, body);
     }
     if (r.status === 401 || r.status === 404) return send(200, { signedIn: false });
@@ -303,6 +341,10 @@ function createAccounts({ bartendersUrl, cookieDomain, fetchImpl = globalThis.fe
     let work;
     if (p === '/api/account/login' && req.method === 'POST') work = signIn(req, send, 'login');
     else if (p === '/api/account/register' && req.method === 'POST') work = signIn(req, send, 'register');
+    else if (p === '/api/account/google' && req.method === 'GET') {
+      send(200, { clientId: googleClientId || null });
+      return true;
+    } else if (p === '/api/account/google' && req.method === 'POST') work = google(req, send);
     else if (p === '/api/account/logout' && req.method === 'POST') work = signOut(req, send);
     else if (p === '/api/account/forgot' && req.method === 'POST') work = forgot(req, send);
     else if (p === '/api/account/reset' && req.method === 'POST') work = reset(req, send);

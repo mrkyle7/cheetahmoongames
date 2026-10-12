@@ -181,6 +181,12 @@ resource "google_cloud_run_v2_service" "bartenders" {
         name  = "PASSWORD_RESET_URL"
         value = "https://${var.domain_name}/reset-password"
       }
+
+      # "Sign in with Google": Google ID tokens must be issued for this client.
+      env {
+        name  = "GOOGLE_CLIENT_ID"
+        value = var.google_client_id
+      }
     }
   }
 
