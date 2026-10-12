@@ -106,6 +106,6 @@ variable "email_from_name" {
 
 variable "google_client_id" {
   type        = string
-  default     = ""
+  default     = "987774112216-3bt1n6optp60blksmrncqoi3req8k07v.apps.googleusercontent.com"
   description = "OAuth client ID for \"Sign in with Google\" on the sign-in page (made by hand, see README). Not a secret. Empty turns Google sign-in off."
 }
