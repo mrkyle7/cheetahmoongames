@@ -51,6 +51,9 @@ function config(env = process.env) {
   return {
     bartendersUrl: (env.BARTENDERS_URL || '').trim().replace(/\/+$/, ''),
     cookieDomain: (env.COOKIE_DOMAIN || '').trim().replace(/^\./, '').toLowerCase(),
+    // The OAuth client ID for "Sign in with Google". Not a secret: it's on
+    // the sign-in page for anyone to read. Unset, the button isn't shown.
+    googleClientId: (env.GOOGLE_CLIENT_ID || '').trim(),
   };
 }
 
@@ -99,8 +102,8 @@ function serveFile(req, res, filePath, extraHeaders) {
 }
 
 function createServer(env = process.env, { fetchImpl } = {}) {
-  const { bartendersUrl, cookieDomain } = config(env);
-  const accounts = createAccounts({ bartendersUrl, cookieDomain, fetchImpl });
+  const { bartendersUrl, cookieDomain, googleClientId } = config(env);
+  const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl });
 
   return http.createServer((req, res) => {
     let url;

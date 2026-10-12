@@ -94,7 +94,7 @@ npm test
 BARTENDERS_URL=https://bartenders.cheetahmoongames.com npm start   # http://localhost:8080
 ```
 
-**Signing in.** `/login` is where players sign in, create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. `/profile` is a signed-in player's account page, for changing their email or password (Bartenders' `/profile` redirects here). `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
+**Signing in.** `/login` is where players sign in (with their name and password, or with Google), create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. `/profile` is a signed-in player's account page, for changing their email or password (Bartenders' `/profile` redirects here). `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
 
 Besides that, the server handles traffic for Bartenders, which used to live on this domain:
 
@@ -175,3 +175,23 @@ Almost everything is in Terraform. These few things aren't, because Terraform ne
 3. **Give it to Bartenders.** In mrkyle7/bartenders-of-corfu: Settings → Secrets and variables → Actions → New repository secret, named `BREVO_API_KEY`. The next deploy of Bartenders copies it into the `brevo-api-key` secret in Secret Manager and starts a revision that uses it. To deploy without a code change, re-run its latest CI/CD run on `main`.
 
 To change the key, update the GitHub secret and deploy Bartenders again. Check it works by asking for a reset link for your own account.
+
+## Sign in with Google
+
+`/login` shows a **Continue with Google** button once `google_client_id` (in `terraform/variables.tf`) is set; until then the page works as before without it. Signing in with Google finds the player's account like this (in Bartenders, `app/google_sign_in.py`):
+
+1. The account already linked to that Google account.
+2. Otherwise the account with the same email, which gets linked, so from then on the player can sign in either way. Only if Google says it has verified the email, so nobody can take over an account with an address that isn't theirs.
+3. Otherwise a new account, named after the player's Google first name (with a number added if the name's taken) and with no password. The account page tells them how to set one, with a reset link, if they also want to sign in with a password.
+
+The button is Google's own ("Sign in with Google", Google Identity Services), in a popup. Google gives the page an ID token, which `site/account.js` passes to Bartenders, which checks Google's signature on it. So there's no client secret and no redirect URL to keep, only the client ID, which isn't secret.
+
+The OAuth client can't be made with Terraform, so make it by hand, once:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/auth/overview?project=bartenders-464918) for `bartenders-464918`, go to **Google Auth Platform**. If it asks, **Get started**: app name *Cheetah Moon Games*, a support email, audience **External**, and a contact email.
+2. **Branding**: add `cheetahmoongames.com` under **Authorized domains**, and optionally the logo and the home page link.
+3. **Audience**: **Publish app**, so anyone can sign in, not just test users. Signing in only asks for name and email, so Google doesn't need to review the app.
+4. **Clients** → **Create client** → **Web application**, named e.g. *cheetahmoongames.com sign-in*. Under **Authorized JavaScript origins** add `https://cheetahmoongames.com`; for local runs also `http://localhost` and `http://localhost:8080`. No redirect URIs are needed.
+5. Copy the **Client ID** (`….apps.googleusercontent.com`) into the `google_client_id` default in `terraform/variables.tf` and merge. The apply gives it to both the home page and Bartenders (`GOOGLE_CLIENT_ID`), and the button appears.
+
+To run it locally, start both with the same ID: `GOOGLE_CLIENT_ID=… uv run …` for Bartenders and `GOOGLE_CLIENT_ID=… BARTENDERS_URL=http://localhost:8000 npm start` in `site/`.

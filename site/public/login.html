@@ -92,6 +92,14 @@
         .signed-in .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
         .signed-in .primary { text-decoration: none; display: inline-block; }
 
+        .google { display: grid; gap: 18px; margin-bottom: 18px; }
+        .google-button { min-height: 44px; display: flex; justify-content: center; }
+        .or {
+            display: flex; align-items: center; gap: 12px; margin: 0;
+            color: var(--muted); font-size: 14px;
+        }
+        .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+
         [hidden] { display: none !important; }
     </style>
 </head>
@@ -114,6 +122,11 @@
                     <a class="primary" id="continue" href="/">Continue</a>
                     <button class="link" type="button" id="signOut">Sign out</button>
                 </div>
+            </div>
+
+            <div class="google" id="google" hidden>
+                <div class="google-button" id="googleButton"></div>
+                <p class="or">or with your Cheetah Moon name</p>
             </div>
 
             <form id="loginForm" novalidate>
@@ -200,7 +213,19 @@
             const TITLES = { login: 'Sign in', register: 'Create an account', forgot: 'Reset your password' };
             const FIRST_FIELD = { login: 'loginName', register: 'regName', forgot: 'forgotEmail' };
 
+            // "Sign in with Google" is shown once Google's script is ready, if
+            // this site has a Google client ID, and not while resetting a
+            // password or already signed in.
+            let googleReady = false;
+            let signedIn = false;
+            let currentMode = 'login';
+            function showGoogle() {
+                $('google').hidden = !googleReady || signedIn || currentMode === 'forgot';
+            }
+
             function setMode(mode, focus) {
+                currentMode = mode;
+                showGoogle();
                 $('title').textContent = TITLES[mode];
                 document.title = TITLES[mode] + ' · Cheetah Moon Games';
                 $('loginForm').hidden = mode !== 'login';
@@ -317,8 +342,57 @@
                 button.disabled = false;
             });
 
+            // Google hands back an ID token; the server checks it, then signs in
+            // the account for that Google account or email, or makes one.
+            async function signInWithGoogle(response) {
+                error.textContent = '';
+                try {
+                    const r = await fetch('/api/account/google', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ credential: response.credential, next }),
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.ok) {
+                        location.assign(data.next || '/');
+                        return;
+                    }
+                    fail(data.error || 'Something went wrong. Please try again.');
+                } catch (e) {
+                    fail("We couldn't reach the server. Check your connection and try again.");
+                }
+            }
+
+            fetch('/api/account/google').then((r) => r.json()).then(({ clientId }) => {
+                if (!clientId) return;
+                const script = document.createElement('script');
+                script.src = 'https://accounts.google.com/gsi/client';
+                script.async = true;
+                script.onload = () => {
+                    google.accounts.id.initialize({
+                        client_id: clientId,
+                        callback: signInWithGoogle,
+                        ux_mode: 'popup',
+                        context: 'signin',
+                    });
+                    google.accounts.id.renderButton($('googleButton'), {
+                        type: 'standard',
+                        theme: 'filled_black',
+                        size: 'large',
+                        text: 'continue_with',
+                        shape: 'rectangular',
+                        logo_alignment: 'left',
+                        width: Math.max(200, Math.min(400, $('title').clientWidth)),
+                    });
+                    googleReady = true;
+                    showGoogle();
+                };
+                document.head.append(script);
+            }).catch(() => {});
+
             $('signOut').addEventListener('click', async () => {
                 await fetch('/api/account/logout', { method: 'POST' }).catch(() => {});
+                signedIn = false;
                 $('signedIn').hidden = true;
                 setMode('login', true);
             });
@@ -329,6 +403,8 @@
             // Already signed in: offer to carry on instead.
             fetch('/api/account/me?next=' + encodeURIComponent(next)).then((r) => r.json()).then((me) => {
                 if (!me.signedIn) return;
+                signedIn = true;
+                showGoogle();
                 $('signedInName').textContent = me.name;
                 $('continue').textContent = gameName ? 'Continue to ' + gameName : 'Continue';
                 $('continue').href = me.next || '/';

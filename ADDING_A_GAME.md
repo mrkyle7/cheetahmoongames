@@ -195,7 +195,7 @@ Use the same art for the game's card on the home page (`site/public/index.html`)
 
 Players have one Cheetah Moon account for every game. They sign in or create it at **https://cheetahmoongames.com/login**, and games never ask for names or passwords themselves.
 
-- **Where accounts live.** The accounts are Bartenders of Corfu's (its users table in Supabase). The home page's `/login` page and `/api/account/*` routes (`site/account.js`) pass sign-in, sign-up and sign-out on to Bartenders, server to server. Bartenders' own `/login` redirects to the home page (its `LOGIN_URL`, set in `terraform/bartenders.tf`).
+- **Where accounts live.** The accounts are Bartenders of Corfu's (its users table in Supabase). The home page's `/login` page and `/api/account/*` routes (`site/account.js`) pass sign-in, sign-up and sign-out on to Bartenders, server to server. Players can also sign in with Google there; to a game it makes no difference, as it ends in the same cookie. Bartenders' own `/login` redirects to the home page (its `LOGIN_URL`, set in `terraform/bartenders.tf`).
 - **The cookie.** Signing in sets `userjwt` for the whole of `cheetahmoongames.com`, so the browser sends it to every game. It's a JWT signed with RS256 by Bartenders; its claims carry the account's id (`id`), name (`sub`) and expiry (`exp`, 7 days).
 - **In a game,** `auth.js` checks the cookie's signature with the public key from `https://cheetahmoongames.com/api/account/keys/<kid>` and gives you the player:
 
