@@ -553,3 +553,29 @@ test("asking who's signed in marks the request as the home page's", async () => 
     assert.strictEqual(bartenders.calls[0].headers['X-Cheetah-Moon-Home'], '1');
   });
 });
+
+test("a game's report of a guest is passed on with the game's identity token", async () => {
+  const bartenders = fakeBartenders({ 'POST /v1/activity/guest-seen': { status: 202, body: { ok: true } } });
+  const token = 'eyJhbGciOiJSUzI1NiJ9.eyJlbWFpbCI6IngifQ.c2lnbmF0dXJl';
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/guest-seen', {
+      headers: { Authorization: `Bearer ${token}` }, body: { name: 'Bob' },
+    });
+    assert.strictEqual(res.status, 202);
+    assert.deepStrictEqual(bartenders.calls[0].body, { name: 'Bob' });
+    assert.strictEqual(bartenders.calls[0].headers.Authorization, `Bearer ${token}`);
+    assert.strictEqual(bartenders.calls[0].headers.Cookie, undefined);
+  });
+});
+
+test('a guest report needs a token, and one Bartenders refuses is a 401', async () => {
+  const bartenders = fakeBartenders({ 'POST /v1/activity/guest-seen': { status: 401, body: { error: 'Not a game' } } });
+  await withServer(ENV, bartenders, async (req) => {
+    assert.strictEqual((await req('POST', '/api/account/guest-seen', { body: { name: 'Bob' } })).status, 401);
+    assert.strictEqual(bartenders.calls.length, 0);
+    const res = await req('POST', '/api/account/guest-seen', {
+      headers: { Authorization: 'Bearer eyJhbGciOiJSUzI1NiJ9.e30.c2lnbmF0dXJl' }, body: { name: 'Bob' },
+    });
+    assert.strictEqual(res.status, 401);
+  });
+});

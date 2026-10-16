@@ -20,6 +20,8 @@
 //   GET  /api/account/keys/:kid   the public key that checks a login cookie
 //   POST /api/account/seen        { place }: a game saw this signed-in player
 //                                 (sent by games' auth.js, with the player's cookie)
+//   POST /api/account/guest-seen  { name }: a game saw a guest (no account); the
+//                                 game's server sends a Google identity token
 //
 // Bartenders answers login and register with the `userjwt` cookie for the
 // whole of cheetahmoongames.com (its COOKIE_DOMAIN), which is passed back to
@@ -323,6 +325,22 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     return send(502, { error: UNAVAILABLE });
   }
 
+  // A game's server saw a guest. It vouches for them with a Google identity
+  // token for its Cloud Run service account, which Bartenders checks (and
+  // which says which game it is), so it's passed on as it is.
+  async function guestSeen(req, send) {
+    const auth = req.headers.authorization || '';
+    if (!/^Bearer [A-Za-z0-9._-]{20,4096}$/.test(auth)) return send(401, { error: 'Not a game' });
+    const body = await readJson(req);
+    const name = body && typeof body.name === 'string' ? body.name.slice(0, 100) : '';
+    const r = await upstream('/v1/activity/guest-seen', {
+      method: 'POST', body: { name }, headers: { Authorization: auth },
+    });
+    if (r.status === 202 || r.status === 200) return send(202, { ok: true });
+    if (r.status === 401) return send(401, { error: 'Not a game' });
+    return send(502, { error: UNAVAILABLE });
+  }
+
   async function key(kid, send) {
     if (!/^[0-9a-fA-F-]{36}$/.test(kid)) return send(404, { error: 'Unknown key' });
     const cached = keyCache.get(kid);
@@ -371,6 +389,7 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     else if (p === '/api/account/email' && req.method === 'POST') work = changeEmail(req, send);
     else if (p === '/api/account/password' && req.method === 'POST') work = changePassword(req, send);
     else if (p === '/api/account/seen' && req.method === 'POST') work = seen(req, send);
+    else if (p === '/api/account/guest-seen' && req.method === 'POST') work = guestSeen(req, send);
     else if (p.startsWith('/api/account/keys/') && req.method === 'GET') work = key(p.slice('/api/account/keys/'.length), send);
     else {
       send(404, { error: 'Not found' });

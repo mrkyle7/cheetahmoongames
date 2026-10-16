@@ -166,3 +166,50 @@ test("a failed report doesn't hold up or break signing in", async () => {
     console.error = original;
   }
 });
+
+// --- Guests ------------------------------------------------------------------------
+
+function guests(opts = {}) {
+  const reports = [];
+  let clock = 1_000_000;
+  const a = auth({ place: 'snap', now: () => clock, reportGuest: async (name) => { reports.push(name); }, ...opts });
+  a.reports = reports;
+  a.advance = (ms) => { clock += ms; };
+  return a;
+}
+
+test('a guest is reported by name, at most every 5 minutes', async () => {
+  const a = guests();
+  a.guestSeen(' Bob ');
+  a.guestSeen('bob');
+  a.guestSeen('Ann');
+  await settle();
+  assert.deepStrictEqual(a.reports, ['Bob', 'Ann']);
+  a.advance(5 * 60 * 1000);
+  a.guestSeen('Bob');
+  await settle();
+  assert.deepStrictEqual(a.reports, ['Bob', 'Ann', 'Bob']);
+});
+
+test('a guest with no name is reported as Guest, and nothing is reported locally', async () => {
+  const a = guests();
+  a.guestSeen('');
+  const local = guests({ place: null });
+  local.guestSeen('Bob');
+  await settle();
+  assert.deepStrictEqual([a.reports, local.reports], [['Guest'], []]);
+});
+
+test("a failed guest report doesn't throw", async () => {
+  const errors = [];
+  const original = console.error;
+  console.error = (m) => errors.push(m);
+  try {
+    const a = guests({ reportGuest: async () => { throw new Error('down'); } });
+    assert.doesNotThrow(() => a.guestSeen('Bob'));
+    await settle();
+    assert.match(errors[0], /couldn't report a guest as seen: down/);
+  } finally {
+    console.error = original;
+  }
+});
