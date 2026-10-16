@@ -187,6 +187,12 @@ resource "google_cloud_run_v2_service" "bartenders" {
         name  = "GOOGLE_CLIENT_ID"
         value = var.google_client_id
       }
+
+      # Who's told when a player comes back (app/activity.py in Bartenders).
+      env {
+        name  = "LOGIN_ALERTS_TO"
+        value = var.login_alerts_to
+      }
     }
   }
 

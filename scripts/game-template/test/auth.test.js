@@ -94,3 +94,75 @@ test('sign-in links come back to the game', () => {
     'https://cheetahmoongames.com/login?next=https%3A%2F%2Fsnap.cheetahmoongames.com%2Froom%2F1',
   );
 });
+
+// --- Telling the accounts service a player was seen -----------------------------
+
+function reporting(opts = {}) {
+  const reports = [];
+  let clock = 1_000_000;
+  const a = auth({
+    place: 'snap',
+    now: () => clock,
+    reportSeen: async (tok, place) => { reports.push({ tok, place }); },
+    ...opts,
+  });
+  a.reports = reports;
+  a.advance = (ms) => { clock += ms; };
+  return a;
+}
+
+const settle = () => new Promise((r) => setImmediate(r));
+
+test('a signed-in player is reported as seen, with their own cookie and the game', async () => {
+  const a = reporting();
+  const t = token();
+  await a.player(req(`userjwt=${t}`));
+  await settle();
+  assert.deepStrictEqual(a.reports, [{ tok: t, place: 'snap' }]);
+});
+
+test('a player is reported at most every 5 minutes', async () => {
+  const a = reporting();
+  for (let i = 0; i < 20; i++) {
+    await a.player(req(`userjwt=${token()}`));
+    a.advance(10_000);
+  }
+  await settle();
+  assert.strictEqual(a.reports.length, 1);
+  a.advance(5 * 60 * 1000);
+  await a.player(req(`userjwt=${token()}`));
+  await settle();
+  assert.strictEqual(a.reports.length, 2);
+});
+
+test('each player is reported on their own', async () => {
+  const a = reporting();
+  await a.player(req(`userjwt=${token({ id: 'user-1' })}`));
+  await a.player(req(`userjwt=${token({ id: 'user-2', sub: 'Bob' })}`));
+  await settle();
+  assert.strictEqual(a.reports.length, 2);
+});
+
+test('nobody is reported for a missing or bad cookie, or without a game name', async () => {
+  const a = reporting();
+  await a.player(req(''));
+  await a.player(req(`userjwt=${token({ exp: 1 })}`));
+  const local = reporting({ place: null });
+  await local.player(req(`userjwt=${token()}`));
+  await settle();
+  assert.deepStrictEqual([a.reports, local.reports], [[], []]);
+});
+
+test("a failed report doesn't hold up or break signing in", async () => {
+  const errors = [];
+  const original = console.error;
+  console.error = (m) => errors.push(m);
+  try {
+    const a = reporting({ reportSeen: async () => { throw new Error('down'); } });
+    assert.deepStrictEqual(await a.player(req(`userjwt=${token()}`)), { id: 'user-1', name: 'Ann Smith' });
+    await settle();
+    assert.match(errors[0], /couldn't report a player as seen: down/);
+  } finally {
+    console.error = original;
+  }
+});

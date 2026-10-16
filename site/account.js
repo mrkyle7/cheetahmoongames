@@ -18,6 +18,8 @@
 //   POST /api/account/email       { email }: change the signed-in player's email
 //   POST /api/account/password    { current, password }: change their password
 //   GET  /api/account/keys/:kid   the public key that checks a login cookie
+//   POST /api/account/seen        { place }: a game saw this signed-in player
+//                                 (sent by games' auth.js, with the player's cookie)
 //
 // Bartenders answers login and register with the `userjwt` cookie for the
 // whole of cheetahmoongames.com (its COOKIE_DOMAIN), which is passed back to
@@ -118,8 +120,8 @@ function readJson(req) {
 function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetchImpl = globalThis.fetch }) {
   const keyCache = new Map();
 
-  async function upstream(path, { method = 'GET', body, cookie } = {}) {
-    const headers = { Accept: 'application/json' };
+  async function upstream(path, { method = 'GET', body, cookie, headers: extra = {} } = {}) {
+    const headers = { Accept: 'application/json', ...extra };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (cookie) headers.Cookie = `${COOKIE_NAME}=${cookie}`;
     const r = await fetchImpl(bartendersUrl + path, {
@@ -249,7 +251,9 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
   async function me(req, url, send) {
     const cookie = loginCookieValue(req);
     if (!cookie) return send(200, { signedIn: false });
-    const r = await upstream('/userDetails', { cookie });
+    // Marked as the home page's, so Bartenders counts the visit as one to
+    // cheetahmoongames.com when it tells the owner who's around.
+    const r = await upstream('/userDetails', { cookie, headers: { 'X-Cheetah-Moon-Home': '1' } });
     if (r.status === 200 && r.json && r.json.username) {
       const next = safeNext(url.searchParams.get('next') || '/', cookieDomain);
       const body = { signedIn: true, name: r.json.username, id: r.json.id, next };
@@ -304,6 +308,21 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     return send(502, { error: UNAVAILABLE });
   }
 
+  // A game's auth.js reports a signed-in player it has seen, so Bartenders
+  // can tell the owner when someone comes back. The player's own cookie
+  // proves who they are; `place` is the game's Cloud Run service name.
+  async function seen(req, send) {
+    const cookie = loginCookieValue(req);
+    if (!cookie) return send(401, { error: 'Not signed in' });
+    const body = await readJson(req);
+    const place = body && typeof body.place === 'string' ? body.place : '';
+    if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(place)) return send(400, { error: 'Unknown place' });
+    const r = await upstream('/v1/activity/seen', { method: 'POST', body: { place }, cookie });
+    if (r.status === 202 || r.status === 200) return send(202, { ok: true });
+    if (r.status === 401) return send(401, { error: 'Not signed in' });
+    return send(502, { error: UNAVAILABLE });
+  }
+
   async function key(kid, send) {
     if (!/^[0-9a-fA-F-]{36}$/.test(kid)) return send(404, { error: 'Unknown key' });
     const cached = keyCache.get(kid);
@@ -351,6 +370,7 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     else if (p === '/api/account/me' && req.method === 'GET') work = me(req, url, send);
     else if (p === '/api/account/email' && req.method === 'POST') work = changeEmail(req, send);
     else if (p === '/api/account/password' && req.method === 'POST') work = changePassword(req, send);
+    else if (p === '/api/account/seen' && req.method === 'POST') work = seen(req, send);
     else if (p.startsWith('/api/account/keys/') && req.method === 'GET') work = key(p.slice('/api/account/keys/'.length), send);
     else {
       send(404, { error: 'Not found' });

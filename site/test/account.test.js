@@ -513,3 +513,43 @@ test('who is signed in says whether the account has a password and a linked Goog
     });
   });
 });
+
+// --- Games reporting players they've seen ----------------------------------------
+
+test("a game's report of a player is passed on with the player's cookie", async () => {
+  const bartenders = fakeBartenders({ 'POST /v1/activity/seen': { status: 202, body: { ok: true } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/seen', {
+      headers: { Cookie: 'userjwt=tok' }, body: { place: 'bezique' },
+    });
+    assert.strictEqual(res.status, 202);
+    assert.deepStrictEqual(bartenders.calls[0].body, { place: 'bezique' });
+    assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=tok');
+  });
+});
+
+test('a report needs a cookie and a place that looks like a game', async () => {
+  const bartenders = fakeBartenders({});
+  await withServer(ENV, bartenders, async (req) => {
+    assert.strictEqual((await req('POST', '/api/account/seen', { body: { place: 'bezique' } })).status, 401);
+    const bad = await req('POST', '/api/account/seen', { headers: { Cookie: 'userjwt=tok' }, body: { place: '../x' } });
+    assert.strictEqual(bad.status, 400);
+  });
+  assert.strictEqual(bartenders.calls.length, 0);
+});
+
+test('a report with a cookie Bartenders refuses is a 401', async () => {
+  const bartenders = fakeBartenders({ 'POST /v1/activity/seen': { status: 401, body: { error: 'Authentication required' } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/seen', { headers: { Cookie: 'userjwt=bad' }, body: { place: 'bezique' } });
+    assert.strictEqual(res.status, 401);
+  });
+});
+
+test("asking who's signed in marks the request as the home page's", async () => {
+  const bartenders = fakeBartenders({ 'GET /userDetails': { body: { username: 'Ann', id: 'u1' } } });
+  await withServer(ENV, bartenders, async (req) => {
+    await req('GET', '/api/account/me', { headers: { Cookie: 'userjwt=tok' } });
+    assert.strictEqual(bartenders.calls[0].headers['X-Cheetah-Moon-Home'], '1');
+  });
+});

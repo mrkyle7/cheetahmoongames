@@ -10,6 +10,14 @@
 //   <ACCOUNTS_URL>/api/account/keys/<kid>
 // and never trusts a cookie it can't check.
 //
+// It also tells the accounts service when it sees a signed-in player, so the
+// site's owner hears when someone comes back (Bartenders' app/activity.py):
+// at most every 5 minutes per player, without holding up the request, by
+// sending the player's own cookie back to the accounts service that issued
+// it (POST <ACCOUNTS_URL>/api/account/seen). That's the only place the cookie
+// goes. The game is named by `place`: Cloud Run's K_SERVICE, the service name,
+// so local runs (no K_SERVICE) report nothing.
+//
 //   const auth = createAuth();
 //   const player = await auth.player(req);   // { id, name } or null
 //   auth.loginUrl('https://snap.cheetahmoongames.com/')   // send them to sign in
@@ -21,6 +29,7 @@ const crypto = require('crypto');
 const COOKIE_NAME = 'userjwt';
 const DEFAULT_ACCOUNTS_URL = 'https://cheetahmoongames.com';
 const MISSING_KEY_RETRY_MS = 60 * 1000;
+const REPORT_EVERY_MS = 5 * 60 * 1000;
 
 function base64url(s) {
   return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
@@ -47,6 +56,8 @@ function createAuth({
   accountsUrl = process.env.ACCOUNTS_URL || DEFAULT_ACCOUNTS_URL,
   fetchKey, // (kid) => Promise<pem string | null>; tests pass their own
   now = () => Date.now(),
+  place = process.env.K_SERVICE || null, // this game, for reporting players seen
+  reportSeen, // (token, place) => Promise; tests pass their own
 } = {}) {
   const base = accountsUrl.replace(/\/+$/, '');
   const keys = new Map(); // kid -> { key: Promise<KeyObject|null>, at }
@@ -109,11 +120,40 @@ function createAuth({
     return { id: claims.id, name: claims.sub };
   }
 
+  const defaultReportSeen = async (token, where) => {
+    const r = await fetch(`${base}/api/account/seen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: `${COOKIE_NAME}=${token}` },
+      body: JSON.stringify({ place: where }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    // 401: a signed-out or deleted account; nothing to report.
+    if (!r.ok && r.status !== 401) throw new Error(`accounts service answered ${r.status}`);
+  };
+  const report = reportSeen || defaultReportSeen;
+  const lastReported = new Map(); // player id -> when
+
+  function noteSeen(token, who) {
+    if (!place) return;
+    const t = now();
+    const last = lastReported.get(who.id);
+    if (last !== undefined && t - last < REPORT_EVERY_MS) return;
+    if (lastReported.size > 10_000) lastReported.clear();
+    lastReported.set(who.id, t);
+    Promise.resolve()
+      .then(() => report(token, place))
+      .catch((err) => console.error(`auth: couldn't report a player as seen: ${err.message}`));
+  }
+
   // The signed-in player making this request (an http request or a WebSocket
   // upgrade), or null.
   function player(req) {
     const token = cookieValue(req && req.headers && req.headers.cookie);
-    return token ? verify(token) : Promise.resolve(null);
+    if (!token) return Promise.resolve(null);
+    return verify(token).then((who) => {
+      if (who) noteSeen(token, who);
+      return who;
+    });
   }
 
   // Where to send someone to sign in; they come back to `returnTo` after.

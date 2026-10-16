@@ -207,10 +207,11 @@ Players have one Cheetah Moon account for every game. They sign in or create it 
   ```
 
   Key players' games and records by `player.id`, not their name: names are for showing. Names can have spaces, so escape them when you put them in HTML.
+- **Players seen.** `auth.js` also tells the accounts service when it recognises a signed-in player (`POST /api/account/seen`, with the player's own cookie, at most every 5 minutes per player, without holding up the request), naming the game by Cloud Run's `K_SERVICE`. Bartenders uses this to send the site's owner a notification when a player comes back after 6+ hours away (`LOGIN_ALERTS_TO` in `terraform/bartenders.tf`). It needs nothing from the game; locally, with no `K_SERVICE`, nothing is reported.
 - **Forgotten passwords** are handled on the home page too: `/login` has "Forgot your password?", which emails a reset link (see the README).
 - **Changing email or password** happens on the home page's `/profile`. Link players there (`https://cheetahmoongames.com/profile`) rather than building an account page in a game.
 - **Signing out** happens on the home page (or in Bartenders) and clears the cookie everywhere. A token that was copied before signing out stays valid in games until it expires; Bartenders also checks its own list of sign-outs.
-- **Rules:** don't log the cookie, store it or send it anywhere but `auth.js`, and don't build your own sign-in. The browser page can't read the cookie (it's `HttpOnly`); ask your own server, e.g. the skeleton's `/api/me`.
+- **Rules:** don't log the cookie, store it or send it anywhere but `auth.js` (which only sends it back to the accounts service), and don't build your own sign-in. The browser page can't read the cookie (it's `HttpOnly`); ask your own server, e.g. the skeleton's `/api/me`.
 - **Running locally:** cookies on `localhost` are shared between ports. Run Bartenders and the home page locally (`BARTENDERS_URL=http://localhost:8000 npm start` in `site/`), sign in at `http://localhost:8080/login`, and start the game with `ACCOUNTS_URL=http://localhost:8080`. Tests don't need any of that: sign tokens with a throwaway key and pass `fetchKey` to `createAuth` (see the skeleton's `test/auth.test.js`).
 
 ## Things to know
