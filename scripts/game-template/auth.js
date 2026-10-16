@@ -10,9 +10,24 @@
 //   <ACCOUNTS_URL>/api/account/keys/<kid>
 // and never trusts a cookie it can't check.
 //
+// It also tells the accounts service when it sees a signed-in player, so the
+// site's owner hears when someone comes back (Bartenders' app/activity.py):
+// at most every 5 minutes per player, without holding up the request, by
+// sending the player's own cookie back to the accounts service that issued
+// it (POST <ACCOUNTS_URL>/api/account/seen). That's the only place the cookie
+// goes. The game is named by `place`: Cloud Run's K_SERVICE, the service name,
+// so local runs (no K_SERVICE) report nothing.
+//
+// Games that let guests play under a typed name call auth.guestSeen(name)
+// when a guest starts playing. With no cookie to vouch for them, the game's
+// server does: it sends a Google identity token for its own Cloud Run service
+// account (from Cloud Run's metadata server; no secrets) to
+// POST <ACCOUNTS_URL>/api/account/guest-seen.
+//
 //   const auth = createAuth();
 //   const player = await auth.player(req);   // { id, name } or null
 //   auth.loginUrl('https://snap.cheetahmoongames.com/')   // send them to sign in
+//   auth.guestSeen('Bob')                    // a guest started playing
 //
 // No dependencies: Node's crypto does the checking.
 
@@ -21,6 +36,11 @@ const crypto = require('crypto');
 const COOKIE_NAME = 'userjwt';
 const DEFAULT_ACCOUNTS_URL = 'https://cheetahmoongames.com';
 const MISSING_KEY_RETRY_MS = 60 * 1000;
+const REPORT_EVERY_MS = 5 * 60 * 1000;
+// Who Bartenders accepts guest reports from: identity tokens made out to this.
+const GAME_AUDIENCE = 'https://cheetahmoongames.com';
+const METADATA_IDENTITY = 'http://metadata.google.internal/computeMetadata/v1/instance/service-account/identity';
+const GAME_TOKEN_TTL_MS = 50 * 60 * 1000; // Google's last an hour
 
 function base64url(s) {
   return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
@@ -47,6 +67,10 @@ function createAuth({
   accountsUrl = process.env.ACCOUNTS_URL || DEFAULT_ACCOUNTS_URL,
   fetchKey, // (kid) => Promise<pem string | null>; tests pass their own
   now = () => Date.now(),
+  place = process.env.K_SERVICE || null, // this game, for reporting players seen
+  reportSeen, // (token, place) => Promise; tests pass their own
+  reportGuest, // (name) => Promise; tests pass their own
+  metadataUrl = METADATA_IDENTITY, // tests point it at a stand-in
 } = {}) {
   const base = accountsUrl.replace(/\/+$/, '');
   const keys = new Map(); // kid -> { key: Promise<KeyObject|null>, at }
@@ -109,11 +133,78 @@ function createAuth({
     return { id: claims.id, name: claims.sub };
   }
 
+  const defaultReportSeen = async (token, where) => {
+    const r = await fetch(`${base}/api/account/seen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: `${COOKIE_NAME}=${token}` },
+      body: JSON.stringify({ place: where }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    // 401: a signed-out or deleted account; nothing to report.
+    if (!r.ok && r.status !== 401) throw new Error(`accounts service answered ${r.status}`);
+  };
+  const report = reportSeen || defaultReportSeen;
+  const lastReported = new Map(); // player id -> when
+
+  function noteSeen(token, who) {
+    if (!place) return;
+    const t = now();
+    const last = lastReported.get(who.id);
+    if (last !== undefined && t - last < REPORT_EVERY_MS) return;
+    if (lastReported.size > 10_000) lastReported.clear();
+    lastReported.set(who.id, t);
+    Promise.resolve()
+      .then(() => report(token, place))
+      .catch((err) => console.error(`auth: couldn't report a player as seen: ${err.message}`));
+  }
+
+  let gameToken = null; // { value, at }
+  async function identityToken() {
+    if (gameToken && now() - gameToken.at < GAME_TOKEN_TTL_MS) return gameToken.value;
+    const url = `${metadataUrl}?audience=${encodeURIComponent(GAME_AUDIENCE)}&format=full`;
+    const r = await fetch(url, { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(5_000) });
+    if (!r.ok) throw new Error(`metadata server answered ${r.status}`);
+    gameToken = { value: (await r.text()).trim(), at: now() };
+    return gameToken.value;
+  }
+
+  const defaultReportGuest = async (name) => {
+    const r = await fetch(`${base}/api/account/guest-seen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await identityToken()}` },
+      body: JSON.stringify({ name }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (r.status === 401) gameToken = null; // try a fresh token next time
+    if (!r.ok) throw new Error(`accounts service answered ${r.status}`);
+  };
+  const reportGuestSeen = reportGuest || defaultReportGuest;
+  const guestsReported = new Map(); // lower-case name -> when
+
+  // A guest (no account) started playing under `name`. Never throws or waits.
+  function guestSeen(name) {
+    if (!place) return;
+    const shown = String(name || '').trim().slice(0, 30) || 'Guest';
+    const key = shown.toLowerCase();
+    const t = now();
+    const last = guestsReported.get(key);
+    if (last !== undefined && t - last < REPORT_EVERY_MS) return;
+    if (guestsReported.size > 10_000) guestsReported.clear();
+    guestsReported.set(key, t);
+    Promise.resolve()
+      .then(() => reportGuestSeen(shown))
+      .catch((err) => console.error(`auth: couldn't report a guest as seen: ${err.message}`));
+  }
+
   // The signed-in player making this request (an http request or a WebSocket
   // upgrade), or null.
   function player(req) {
     const token = cookieValue(req && req.headers && req.headers.cookie);
-    return token ? verify(token) : Promise.resolve(null);
+    if (!token) return Promise.resolve(null);
+    return verify(token).then((who) => {
+      if (who) noteSeen(token, who);
+      return who;
+    });
   }
 
   // Where to send someone to sign in; they come back to `returnTo` after.
@@ -121,7 +212,7 @@ function createAuth({
     return `${base}/login${returnTo ? `?next=${encodeURIComponent(returnTo)}` : ''}`;
   }
 
-  return { player, verify, loginUrl, accountsUrl: base };
+  return { player, verify, loginUrl, guestSeen, accountsUrl: base };
 }
 
 module.exports = { createAuth, cookieValue, COOKIE_NAME };
