@@ -58,11 +58,11 @@ jobs:
 
   deploy:
     needs: test
-    # DEPLOY_ENABLED is a repo variable (Settings → Secrets and variables →
-    # Actions → Variables). Set it to true once this game's entry in
-    # cheetahmoongames' games.tf has been merged and applied; until then the
-    # deploy account doesn't exist and this job would only fail.
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    # Every push to main deploys. It needs this game's entry in cheetahmoongames'
+    # games.tf merged and applied first: until then the deploy account doesn't
+    # exist and signing in to Google Cloud fails. new-game.sh pushes the
+    # skeleton with [skip ci] so the repo doesn't start with a failed deploy.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
