@@ -49,6 +49,7 @@
         .game.boxer:hover { border-color: var(--boxer); }
         .game.bezique:hover { border-color: var(--bezique); }
         .game.flag:hover { border-color: var(--flag); }
+        .game.shootout:hover { border-color: var(--shootout); }
 
         .art {
             height: 210px;
@@ -67,6 +68,8 @@
         .flag .art svg { width: 100%; height: 100%; }
         .keep .art { background: #422b15; grid-template-rows: 100%; }
         .keep .art img { width: 100%; height: 100%; object-fit: contain; }
+        .shootout .art { background: #0b2a1a; }
+        .shootout .art svg { width: 100%; height: 100%; }
 
         .body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
         .body h2 { margin: 0 0 6px; font-size: 24px; }
@@ -87,6 +90,7 @@
         .bezique .play { background: #1d6b45; }
         .flag .play { background: #2563eb; }
         .keep .play { background: #9b2b25; }
+        .shootout .play { background: #c2410c; }
 
         footer { margin-top: 44px; color: var(--muted); font-size: 14px; }
 
@@ -197,6 +201,29 @@
                     <h2>King's Keep</h2>
                     <p>Hire mercenaries, send spies after treasure and fight through the King's guards to take his throne. For 2 to 5 players, with bots to fill the seats.</p>
                     <span class="play">Play King's Keep</span>
+                </div>
+            </a>
+
+            <a class="game shootout" href="https://football-shootout.cheetahmoongames.com/"
+               aria-label="Play Football Shootout">
+                <div class="art">
+                    <!-- The game's icon: a ball in the top corner of the net. -->
+                    <svg viewBox="-120 0 752 512" aria-hidden="true">
+                        <rect x="-120" y="356" width="752" height="156" fill="#2f8f46"/>
+                        <g stroke="#ffffff" stroke-opacity="0.35" stroke-width="6">
+                            <path d="M108 140v216M156 140v216M204 140v216M252 140v216M300 140v216M348 140v216M396 140v216"/>
+                            <path d="M84 176h344M84 224h344M84 272h344M84 320h344"/>
+                        </g>
+                        <path d="M84 364V132h344v232" fill="none" stroke="#f8fafc" stroke-width="28" stroke-linejoin="round"/>
+                        <circle cx="352" cy="200" r="62" fill="#ffffff" stroke="#111827" stroke-width="8"/>
+                        <path d="M352 178l21 15-8 25h-26l-8-25z" fill="#111827"/>
+                        <path d="M352 138v40M373 193l38-12M365 218l23 32M339 218l-23 32M331 193l-38-12" stroke="#111827" stroke-width="7"/>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>Football Shootout</h2>
+                    <p>A penalty shootout for two. Aim, hold for power and shoot, then take your turn in goal as Dave the keeper. Five each, then sudden death.</p>
+                    <span class="play">Play Football Shootout</span>
                 </div>
             </a>
         </section>
