@@ -39,7 +39,7 @@ const MISSING_KEY_RETRY_MS = 60 * 1000;
 const REPORT_EVERY_MS = 5 * 60 * 1000;
 // Who Bartenders accepts guest reports from: identity tokens made out to this.
 const GAME_AUDIENCE = 'https://cheetahmoongames.com';
-const METADATA_IDENTITY = 'http://metadata.google.internal/computeMetadata/v1/instance/service-account/identity';
+const METADATA_IDENTITY = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity';
 const GAME_TOKEN_TTL_MS = 50 * 60 * 1000; // Google's last an hour
 
 function base64url(s) {
