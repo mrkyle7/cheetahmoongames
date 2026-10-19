@@ -213,3 +213,28 @@ test("a failed guest report doesn't throw", async () => {
     console.error = original;
   }
 });
+
+test("a guest report asks Cloud Run's metadata server for this service's identity token", async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), headers: init && init.headers });
+    if (String(url).startsWith('http://metadata.google.internal/')) return new Response('id.token.value\n');
+    return new Response('{"ok":true}', { status: 202 });
+  };
+  try {
+    const a = createAuth({ accountsUrl: 'https://cheetahmoongames.com', place: 'snap' });
+    a.guestSeen('Bob');
+    await new Promise((r) => setTimeout(r, 20));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.strictEqual(
+    calls[0].url,
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity'
+      + '?audience=https%3A%2F%2Fcheetahmoongames.com&format=full',
+  );
+  assert.strictEqual(calls[0].headers['Metadata-Flavor'], 'Google');
+  assert.strictEqual(calls[1].url, 'https://cheetahmoongames.com/api/account/guest-seen');
+  assert.strictEqual(calls[1].headers.Authorization, 'Bearer id.token.value');
+});
