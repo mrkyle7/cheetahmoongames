@@ -4,7 +4,7 @@ Each game lives in its own GitHub repo and runs as its own Cloud Run service at 
 
 1. **Create the game's repo** with `scripts/new-game.sh`. You get a working skeleton with the deploy workflow already filled in.
 2. **Add the game in this repo:** an entry in `terraform/games.tf` and a card on the home page, in one pull request. Merging it creates the game's Cloud Run service, image registry, subdomain, DNS record, and its IAM permissions.
-3. **Turn on deploys** in the game's repo, once step 2 is applied.
+3. **Deploy the game** by pushing to its `main`, once step 2 is applied.
 4. **Wait for HTTPS** on the new subdomain.
 
 The example adds a game called **Snap** at `snap.cheetahmoongames.com` from the repo `mrkyle7/snap`.
@@ -46,7 +46,7 @@ The skeleton, from `scripts/game-template/`:
 | `auth.js` | Tells the game who's playing, from the shared Cheetah Moon sign-in. See [Players and signing in](#players-and-signing-in). |
 | `test/` | Its tests (`npm test`) |
 | `Dockerfile` | The container Cloud Run runs |
-| `.github/workflows/ci-cd.yml` | Tests and a container smoke test on every push. Deploys on `main` once turned on (step 3). Every name in it is already set for the game. |
+| `.github/workflows/ci-cd.yml` | Tests and a container smoke test on every push. Every push to `main` deploys it (step 3). Every name in it is already set for the game. |
 | `CLAUDE.md` | For future Claude sessions in that repo: read this file first, then follow the checklist for getting the game live and the rules the game must keep |
 
 Whatever the game becomes, its container must:
@@ -137,15 +137,11 @@ It should also **update** `google_iam_workload_identity_pool_provider.github` to
 
 Merge it. CI applies the plan and redeploys the home page with the new card. The new service shows Google's "hello" placeholder until step 3.
 
-## 3. Turn on deploys
+## 3. Deploy the game
 
-The skeleton's deploy job is skipped until the repo variable `DEPLOY_ENABLED` is `true`. Before step 2 is applied, the deploy account doesn't exist, so deploying would only fail. Once the merge's Deploy run here has succeeded:
+Every push to the game's `main` deploys it; there's nothing to turn on. Before step 2 is applied the deploy account doesn't exist, so a deploy would fail at signing in to Google Cloud. That's why `new-game.sh` pushes the skeleton with `[skip ci]`, and why the game should only be pushed to `main` (or a pull request merged) once the merge's Deploy run here has succeeded. If a push got there first, re-run its CI/CD run.
 
-```sh
-gh variable set DEPLOY_ENABLED --body true -R mrkyle7/snap
-```
-
-Then push to `main`, or re-run the game's latest CI/CD run. On `main` the workflow:
+On `main` the workflow:
 1. builds the image and pushes it to `us-east1-docker.pkg.dev/bartenders-464918/snap/snap`
 2. deploys it
 3. checks the service serves the page (it looks for `PAGE_MARKER`, the title by default)
@@ -265,8 +261,8 @@ The libraries are `web-push` for Node and `pywebpush` for Python. The packages a
 - **The merge run here fails with "Caller is not authorized to administer the domain":**
   - `github-terraform` isn't a verified owner of `cheetahmoongames.com`. Add it (README → Set up by hand → Domain ownership), then re-run the failed jobs.
 - **The game's deploy job is skipped:**
-  - `DEPLOY_ENABLED` isn't set to `true` in the game's repo (step 3).
-  - Or the run isn't a push to `main`. Pull requests never deploy.
+  - The run isn't a push to `main`. Pull requests never deploy.
+  - Or the commit message has `[skip ci]`, like the skeleton's first commit.
 - **"Permission denied" or "unable to acquire impersonated credentials" at sign-in:**
   - This repo's pull request isn't merged and applied yet.
   - Or `github_repo` in `games.tf` doesn't match the repo exactly (`owner/name`).

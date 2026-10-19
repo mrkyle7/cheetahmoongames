@@ -159,7 +159,8 @@ if [ "$GITHUB" -eq 1 ]; then
     cd "$DIR"
     git init -q -b main
     git add -A
-    git commit -q -m "Start $TITLE from the cheetahmoongames skeleton"
+    # [skip ci]: its deploy would fail until step 1 below is applied.
+    git commit -q -m "Start $TITLE from the cheetahmoongames skeleton [skip ci]"
     gh repo create "$OWNER/$NAME" "$VISIBILITY" \
       --description "$TITLE, a game on cheetahmoongames.com" \
       --source . --remote origin --push
@@ -185,11 +186,8 @@ Next steps (details in ADDING_A_GAME.md):
    and a card to site/public/index.html. Open a pull request, check its plan
    only adds resources, and merge it.
 
-2. Once that merge's Deploy run has applied, turn on deploys for the game:
-
-    gh variable set DEPLOY_ENABLED --body true -R $OWNER/$NAME
-
-   then push to main (or re-run its CI/CD workflow) to deploy.
+2. Once that merge's Deploy run has applied, push to the game's main branch
+   (or run its CI/CD workflow) to deploy it. Every push to main deploys.
 
 3. https://$SUBDOMAIN.cheetahmoongames.com works once its certificate is issued,
    usually 15-60 minutes after the DNS record appears.

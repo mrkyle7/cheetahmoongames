@@ -16,8 +16,7 @@ Check what's done before starting. Ask the user if unsure, and update these boxe
 - [ ] `__NAME__` entry added to `terraform/games.tf` in mrkyle7/cheetahmoongames, merged, and its workflow applied successfully
 - [ ] Card for the game added to `site/public/index.html` in mrkyle7/cheetahmoongames (can be the same pull request)
 - [ ] The game's own icon in `public/icon.svg`, with the PNGs in `public/icons/` rendered from it, and the same art on its home page card
-- [ ] Repo variable `DEPLOY_ENABLED` set to `true` in this repo: `gh variable set DEPLOY_ENABLED --body true -R __OWNER__/__NAME__`
-- [ ] A push to `main` deployed successfully (Actions → CI/CD)
+- [ ] A push to `main` deployed successfully (Actions → CI/CD). Every push to `main` deploys; there is no setting or repo variable to turn on, so never tell anyone to set one (an old `DEPLOY_ENABLED` variable is gone).
 - [ ] `https://__SUBDOMAIN__.cheetahmoongames.com` loads over HTTPS (the certificate can take 15–60 minutes after the DNS record appears)
 
 ## Rules the game must keep
@@ -46,7 +45,7 @@ docker build -t __NAME__ . && docker run -p 8080:8080 __NAME__   # the container
 
 ## How it deploys
 
-`.github/workflows/ci-cd.yml` runs tests and a container smoke test on every push and pull request. On `main`, once `DEPLOY_ENABLED` is `true`, it:
+`.github/workflows/ci-cd.yml` runs tests and a container smoke test on every push and pull request. Every push to `main` also deploys it:
 1. builds the image and pushes it to `us-east1-docker.pkg.dev/bartenders-464918/__NAME__/__NAME__`
 2. deploys it to the `__NAME__` service
 3. checks the service serves the page
