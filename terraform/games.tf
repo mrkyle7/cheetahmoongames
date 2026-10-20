@@ -84,6 +84,12 @@ locals {
       timeout       = "3600s"
       concurrency   = 1000
     }
+
+    slow-chess = {
+      name        = "slow-chess"
+      subdomain   = "slow-chess"
+      github_repo = "mrkyle7/slow-chess"
+    }
   }
 }
 

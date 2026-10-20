@@ -50,6 +50,7 @@
         .game.bezique:hover { border-color: var(--bezique); }
         .game.flag:hover { border-color: var(--flag); }
         .game.shootout:hover { border-color: var(--shootout); }
+        .game.slow:hover { border-color: #f3d36b; }
 
         .art {
             height: 210px;
@@ -70,6 +71,8 @@
         .keep .art img { width: 100%; height: 100%; object-fit: contain; }
         .shootout .art { background: #0b2a1a; }
         .shootout .art svg { width: 100%; height: 100%; }
+        .slow .art { background: #0d0f1c; }
+        .slow .art svg { width: 100%; height: 100%; }
 
         .body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
         .body h2 { margin: 0 0 6px; font-size: 24px; }
@@ -91,6 +94,7 @@
         .flag .play { background: #2563eb; }
         .keep .play { background: #9b2b25; }
         .shootout .play { background: #c2410c; }
+        .slow .play { background: #8a6410; }
 
         footer { margin-top: 44px; color: var(--muted); font-size: 14px; }
 
@@ -224,6 +228,30 @@
                     <h2>Football Shootout</h2>
                     <p>A penalty shootout for two. Aim, hold for power and shoot, then take your turn in goal as Dave the keeper. Five each, then sudden death.</p>
                     <span class="play">Play Football Shootout</span>
+                </div>
+            </a>
+
+            <a class="game slow" href="https://slow-chess.cheetahmoongames.com/"
+               aria-label="Play Slow Chess">
+                <div class="art">
+                    <!-- The game's icon: a chess clock with a pawn waiting on top. -->
+                    <svg viewBox="-120 0 752 512" aria-hidden="true">
+                        <rect x="150" y="150" width="70" height="34" rx="8" fill="#a6acc8"/>
+                        <rect x="292" y="168" width="70" height="16" rx="6" fill="#a6acc8"/>
+                        <rect x="70" y="180" width="372" height="236" rx="40" fill="#f3d36b"/>
+                        <circle cx="178" cy="298" r="78" fill="#0d0f1c"/>
+                        <circle cx="334" cy="298" r="78" fill="#0d0f1c"/>
+                        <path d="M178 298V250M178 298l30 18" stroke="#f1f2f8" stroke-width="14" stroke-linecap="round"/>
+                        <path d="M334 298V250M334 298l-30 18" stroke="#f1f2f8" stroke-width="14" stroke-linecap="round"/>
+                        <path d="M334 236a62 62 0 0 1 54 31" fill="none" stroke="#f3d36b" stroke-width="10" stroke-linecap="round"/>
+                        <circle cx="256" cy="74" r="28" fill="#f1f2f8"/>
+                        <path d="M232 104h48l14 46h-76z" fill="#f1f2f8"/>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>Slow Chess</h2>
+                    <p>A chess clock for over the board, with a twist: after every move the next player must wait at least five seconds before pressing it. A soft chime says when they can.</p>
+                    <span class="play">Open Slow Chess</span>
                 </div>
             </a>
         </section>
