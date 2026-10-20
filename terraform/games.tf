@@ -89,6 +89,14 @@ locals {
       name        = "slow-chess"
       subdomain   = "slow-chess"
       github_repo = "mrkyle7/slow-chess"
+
+      # Online games live in memory, so both players must reach the same
+      # instance. Each game page keeps a server-sent events stream open for
+      # updates: let one last an hour (the page reconnects after) and let one
+      # instance hold many.
+      max_instances = 1
+      timeout       = "3600s"
+      concurrency   = 1000
     }
   }
 }
