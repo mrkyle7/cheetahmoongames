@@ -97,6 +97,9 @@ locals {
       max_instances = 1
       timeout       = "3600s"
       concurrency   = 1000
+
+      # Turn-by-turn games are saved here after every move (slow-chess.tf).
+      env = { GAMES_BUCKET = "${var.project_name}-slow-chess" }
     }
   }
 }
