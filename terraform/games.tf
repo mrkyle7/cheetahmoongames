@@ -101,6 +101,14 @@ locals {
       # Turn-by-turn games are saved here after every move (slow-chess.tf).
       env = { GAMES_BUCKET = "${var.project_name}-slow-chess" }
     }
+
+    # Compaction. It runs in the browser and keeps nothing on the server,
+    # so the defaults suit it.
+    claude = {
+      name        = "claude"
+      subdomain   = "claude"
+      github_repo = "mrkyle7/claude"
+    }
   }
 }
 
