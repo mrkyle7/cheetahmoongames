@@ -102,8 +102,8 @@ locals {
       env = { GAMES_BUCKET = "${var.project_name}-slow-chess" }
     }
 
-    # Compaction. It runs in the browser and keeps nothing on the server,
-    # so the defaults suit it.
+    # Claude's games, Etymon and Compaction. They run in the browser and
+    # keep nothing on the server, so the defaults suit them.
     claude = {
       name        = "claude"
       subdomain   = "claude"
