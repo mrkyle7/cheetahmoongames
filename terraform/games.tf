@@ -102,6 +102,19 @@ locals {
       env = { GAMES_BUCKET = "${var.project_name}-slow-chess" }
     }
 
+    hide-and-seek = {
+      name        = "hide-and-seek"
+      subdomain   = "hide-and-seek"
+      github_repo = "mrkyle7/hide-and-seek"
+
+      # Live games are WebSocket connections and rooms live in memory: let a
+      # connection last an hour, and keep both players on one instance.
+      timeout          = "3600s"
+      session_affinity = true
+      concurrency      = 1000
+      max_instances    = 1
+    }
+
     # Claude's games, Etymon and Compaction. They run in the browser and
     # keep nothing on the server, so the defaults suit them.
     claude = {
