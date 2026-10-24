@@ -115,12 +115,20 @@ locals {
       max_instances    = 1
     }
 
-    # Claude's games, Etymon and Compaction. They run in the browser and
-    # keep nothing on the server, so the defaults suit them.
+    # Claude's Compaction. It isn't on the home page. It runs in the
+    # browser and keeps nothing on the server, so the defaults suit it.
     claude = {
       name        = "claude"
       subdomain   = "claude"
       github_repo = "mrkyle7/claude"
+    }
+
+    # Etymon runs in the browser and keeps nothing on the server, so the
+    # defaults suit it.
+    etymon = {
+      name        = "etymon"
+      subdomain   = "etymon"
+      github_repo = "mrkyle7/etymon"
     }
   }
 }
