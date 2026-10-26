@@ -126,6 +126,9 @@ locals {
       session_affinity = true
       concurrency      = 1000
       max_instances    = 1
+
+      # Players' records: the spells they've learned (spell-battle.tf).
+      env = { PLAYERS_BUCKET = "${var.project_name}-spell-battle" }
     }
 
     # Claude's Compaction. It isn't on the home page. It runs in the
