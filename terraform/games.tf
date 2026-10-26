@@ -115,6 +115,19 @@ locals {
       max_instances    = 1
     }
 
+    spell-battle = {
+      name        = "spell-battle"
+      subdomain   = "spell-battle"
+      github_repo = "mrkyle7/spell-battle"
+
+      # Like Hide And Seek: live games are WebSocket connections and rooms
+      # live in memory, so every wizard in a room must reach one instance.
+      timeout          = "3600s"
+      session_affinity = true
+      concurrency      = 1000
+      max_instances    = 1
+    }
+
     # Claude's Compaction. It isn't on the home page. It runs in the
     # browser and keeps nothing on the server, so the defaults suit it.
     claude = {
