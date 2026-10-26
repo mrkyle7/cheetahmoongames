@@ -123,12 +123,16 @@ locals {
       github_repo = "mrkyle7/claude"
     }
 
-    # Etymon runs in the browser and keeps nothing on the server, so the
-    # defaults suit it.
+    # Etymon runs in the browser; its server only keeps each signed-in
+    # player's record (etymon.tf). Players never need the same instance, so
+    # the defaults suit it.
     etymon = {
       name        = "etymon"
       subdomain   = "etymon"
       github_repo = "mrkyle7/etymon"
+
+      # Players' records: best scores, endings found and games played.
+      env = { GAMES_BUCKET = "${var.project_name}-etymon" }
     }
   }
 }
