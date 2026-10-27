@@ -59,6 +59,7 @@ And every game on the site has these, which the skeleton starts you with. Keep t
 - **A link back to cheetahmoongames.com** on the game's main page, like "← Cheetah Moon Games" in the skeleton's top bar, The Boxer's lobby and Bezique's header.
 - **Its own icons:** a favicon and app icons in the game's own style, replacing the placeholder, plus card art on the home page. See [Icons and installing](#icons-and-installing).
 - **Installable as an app** on phones and desktops: a web app manifest and a service worker. See [Icons and installing](#icons-and-installing).
+- **The "Buy me a coffee" badge** on the game's main page, linking to `https://buymeacoffee.com/mrkyle7`, like the skeleton's footer. See [Buy me a coffee](#buy-me-a-coffee).
 
 ## 2. Add the game in this repo
 
@@ -186,6 +187,32 @@ npx -y -p playwright node scripts/render-icons.js ../snap/public/icon.svg ../sna
 Every page of the game should link the favicon, the Apple icon and the manifest, and register the service worker, as `public/index.html` does. Check it in Chrome: DevTools → Application → Manifest shows any problems with installing.
 
 Use the same art for the game's card on the home page (`site/public/index.html`), so players recognise it.
+
+## Buy me a coffee
+
+The home page and every game's main page (its home page or lobby, wherever players land) show the same "Buy me a coffee" badge, linking to `https://buymeacoffee.com/mrkyle7`. The skeleton has it in a footer. Keep it somewhere visible on that page, like a footer or the top bar, but out of the way of play: not floating over the board.
+
+Copy it exactly, so it looks the same everywhere. It's self-contained: no image or script from Buy Me a Coffee, so it works offline and loads nothing from elsewhere.
+
+```html
+<a class="bmc" href="https://buymeacoffee.com/mrkyle7" target="_blank" rel="noopener">
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M4 7h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V7Zm13 1.5h1a3 3 0 0 1 0 6h-1.3c.2-.5.3-1 .3-1.5h1a1.5 1.5 0 0 0 0-3h-1V8.5ZM3 19.5h15V21H3v-1.5Z"/></svg>
+  Buy me a coffee
+</a>
+```
+
+```css
+.bmc {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  background: #ffdd00; color: #0d0c22;
+  font: 600 14px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  text-decoration: none; white-space: nowrap;
+}
+.bmc:hover { background: #ffe74d; }
+.bmc:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.bmc svg { width: 18px; height: 18px; flex: none; }
+```
 
 ## Players and signing in
 

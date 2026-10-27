@@ -59,6 +59,13 @@ test('links back to Cheetah Moon Games and shows who is signed in', async () => 
   });
 });
 
+test('has the Buy me a coffee badge', async () => {
+  await withServer(async (base) => {
+    const html = await (await fetch(`${base}/`)).text();
+    assert.match(html, /<a class="bmc" href="https:\/\/buymeacoffee\.com\/mrkyle7"/);
+  });
+});
+
 test('installable: icons, manifest and service worker are served', async () => {
   await withServer(async (base) => {
     const html = await (await fetch(`${base}/`)).text();
