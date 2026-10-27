@@ -86,7 +86,26 @@ test('signing in passes the shared cookie back and returns where to go next', as
     assert.match(clearLegacy, /^userjwt=""; Max-Age=0/);
     assert.doesNotMatch(clearLegacy, /Domain/);
     assert.strictEqual(shared, SHARED_COOKIE);
-    assert.deepStrictEqual(bartenders.calls[0].body, { username: 'Ann', password: 'pw12345678' });
+    assert.deepStrictEqual(bartenders.calls[0].body, {
+      username: 'Ann', password: 'pw12345678', next: 'https://bezique.cheetahmoongames.com/game/abc',
+    }, 'next goes along for the link if the email needs verifying');
+  });
+});
+
+test("signing in before verifying the email says so, and doesn't sign in", async () => {
+  const bartenders = fakeBartenders({
+    'POST /login': {
+      status: 403,
+      body: { error: 'Please verify your email first.', email_not_verified: true },
+    },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/login', { body: { username: 'Ann', password: 'pw12345678' } });
+    assert.strictEqual(res.status, 403);
+    assert.strictEqual(res.json.verify, true);
+    assert.match(res.json.error, /verify your email/);
+    assert.strictEqual(res.headers['set-cookie'], undefined);
+    assert.deepStrictEqual(bartenders.calls[0].body, { username: 'Ann', password: 'pw12345678' }, 'no next when it is home');
   });
 });
 
@@ -123,19 +142,20 @@ test('bad request bodies are refused before reaching Bartenders', async () => {
 
 // --- Creating an account ------------------------------------------------------
 
-test('creating an account signs the player in', async () => {
+test("creating an account asks the player to verify their email, and doesn't sign in", async () => {
   const bartenders = fakeBartenders({
-    'POST /register': { status: 201, body: { username: 'New Player', id: 'u2' }, cookies: [SHARED_COOKIE] },
+    'POST /register': { status: 201, body: { username: 'New Player', id: 'u2', email_verification_sent: true } },
   });
   await withServer(ENV, bartenders, async (req) => {
     const res = await req('POST', '/api/account/register', {
-      body: { username: 'New Player', email: 'np@example.com', password: 'abcdefg1' },
+      body: { username: 'New Player', email: ' np@example.com ', password: 'abcdefg1', next: 'https://bezique.cheetahmoongames.com/' },
     });
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.json.name, 'New Player');
-    assert.strictEqual(res.json.next, '/');
-    assert.ok(res.headers['set-cookie'].includes(SHARED_COOKIE));
-    assert.deepStrictEqual(bartenders.calls[0].body, { username: 'New Player', password: 'abcdefg1', email: 'np@example.com' });
+    assert.deepStrictEqual(res.json, { ok: true, verify: true, email: 'np@example.com' });
+    assert.strictEqual(res.headers['set-cookie'], undefined);
+    assert.deepStrictEqual(bartenders.calls[0].body, {
+      username: 'New Player', password: 'abcdefg1', email: 'np@example.com', next: 'https://bezique.cheetahmoongames.com/',
+    });
   });
 });
 
@@ -317,6 +337,60 @@ test('expired links and refused passwords are explained', async () => {
   });
 });
 
+// --- Verifying an email -------------------------------------------------------
+
+test('serves the verify page without leaking its link as a referrer', async () => {
+  await withServer(ENV, fakeBartenders({}), async (req) => {
+    const res = await req('GET', '/verify-email?token=abc');
+    assert.strictEqual(res.status, 200);
+    assert.match(res.body, /id="verifyForm"/);
+    assert.strictEqual(res.headers['referrer-policy'], 'no-referrer');
+  });
+});
+
+test('a verify link signs the player in and returns where to go next', async () => {
+  const bartenders = fakeBartenders({
+    'POST /v1/auth/verify-email/confirm': { body: { username: 'Ann', id: 'u1' }, cookies: [SHARED_COOKIE] },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/verify', {
+      body: { token: 'tok123', next: 'https://bezique.cheetahmoongames.com/' },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, { ok: true, name: 'Ann', next: 'https://bezique.cheetahmoongames.com/' });
+    assert.ok(res.headers['set-cookie'].includes(SHARED_COOKIE));
+    assert.deepStrictEqual(bartenders.calls[0].body, { token: 'tok123' });
+
+    const offSite = await req('POST', '/api/account/verify', { body: { token: 'tok123', next: 'https://evil.example/' } });
+    assert.strictEqual(offSite.json.next, '/');
+  });
+});
+
+test('a used or expired verify link is explained, and a taken email too', async () => {
+  const expired = "This link has expired or has already been used. Sign in with your name and password and we'll send you a new one.";
+  const taken = 'That email is already used by another account.';
+  for (const [upstream, shown, isExpired] of [
+    [expired, expired, true],
+    [taken, taken, undefined],
+    ['something internal', expired, true],
+  ]) {
+    const bartenders = fakeBartenders({ 'POST /v1/auth/verify-email/confirm': { status: 400, body: { error: upstream } } });
+    await withServer(ENV, bartenders, async (req) => {
+      const res = await req('POST', '/api/account/verify', { body: { token: 't' } });
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.json.error, shown);
+      assert.strictEqual(res.json.expired, isExpired);
+      assert.strictEqual(res.headers['set-cookie'], undefined);
+    });
+  }
+  const bartenders = fakeBartenders({});
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('POST', '/api/account/verify', { body: {} });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(bartenders.calls.length, 0, 'no token, nothing sent');
+  });
+});
+
 // --- The account page: email and password ------------------------------------
 
 test('serves the account page', async () => {
@@ -341,13 +415,13 @@ test('who is signed in includes their email for the account page', async () => {
 });
 
 test('changing email passes the login cookie on to Bartenders', async () => {
-  const bartenders = fakeBartenders({ 'PATCH /v1/users/me/email': { body: { message: 'ok' } } });
+  const bartenders = fakeBartenders({ 'PATCH /v1/users/me/email': { body: { message: 'ok', pending: true } } });
   await withServer(ENV, bartenders, async (req) => {
     const res = await req('POST', '/api/account/email', {
       headers: { Cookie: 'userjwt=tok' }, body: { email: ' new@example.com ' },
     });
     assert.strictEqual(res.status, 200);
-    assert.deepStrictEqual(res.json, { ok: true, email: 'new@example.com' });
+    assert.deepStrictEqual(res.json, { ok: true, email: 'new@example.com', pending: true }, 'changes once the link is clicked');
     assert.deepStrictEqual(bartenders.calls[0].body, { new_email: 'new@example.com' });
     assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=tok');
   });

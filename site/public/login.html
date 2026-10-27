@@ -111,7 +111,7 @@
         </a>
 
         <section class="panel" aria-labelledby="title">
-            <h1 id="title">Sign in</h1>
+            <h1 id="title" tabindex="-1">Sign in</h1>
             <p class="sub" id="sub">One account for every Cheetah Moon game.</p>
 
             <p class="error" id="error" role="alert"></p>
@@ -156,6 +156,11 @@
                 <p class="hint">Nothing arrived after a few minutes? Check your spam folder, or <button class="link" type="button" data-mode="forgot">try again</button>.</p>
             </div>
 
+            <div class="sent" id="verifySent" hidden role="status">
+                <p id="verifyText"></p>
+                <p class="hint">Nothing arrived after a few minutes? Check your spam folder, or <button class="link" type="button" data-mode="login">sign in</button> again with your name and password for a new link.</p>
+            </div>
+
             <form id="registerForm" novalidate hidden>
                 <label>Name
                     <span class="hint" id="nameHint">What other players see. 3 to 50 letters, numbers, spaces, hyphens or underscores.</span>
@@ -163,7 +168,7 @@
                            pattern="[A-Za-z0-9 _\-]{3,50}" aria-describedby="nameHint" spellcheck="false">
                 </label>
                 <label>Email
-                    <span class="hint" id="emailHint">Only used if you need to get back into your account.</span>
+                    <span class="hint" id="emailHint">We'll send it a link to finish creating your account. Only used for signing in.</span>
                     <input id="regEmail" name="email" type="email" autocomplete="email" required aria-describedby="emailHint">
                 </label>
                 <label>Password
@@ -220,7 +225,7 @@
             let signedIn = false;
             let currentMode = 'login';
             function showGoogle() {
-                $('google').hidden = !googleReady || signedIn || currentMode === 'forgot';
+                $('google').hidden = !googleReady || signedIn || currentMode === 'forgot' || currentMode === 'verify';
             }
 
             function setMode(mode, focus) {
@@ -232,6 +237,7 @@
                 $('registerForm').hidden = mode !== 'register';
                 $('forgotForm').hidden = mode !== 'forgot';
                 $('forgotSent').hidden = true;
+                $('verifySent').hidden = true;
                 $('switchToRegister').hidden = mode !== 'login';
                 $('switchToLogin').hidden = mode !== 'register';
                 $('backToLogin').hidden = mode !== 'forgot';
@@ -273,6 +279,31 @@
                 return null;
             }
 
+            // The account's email isn't verified yet, so a link is on its way
+            // instead of signing in.
+            function showVerify(email) {
+                const text = $('verifyText');
+                text.textContent = '';
+                if (email) {
+                    text.append("We've sent a link to ");
+                    const strong = document.createElement('strong');
+                    strong.textContent = email;
+                    text.append(strong, '. Click it to finish creating your account and sign in.');
+                } else {
+                    text.append("You need to verify your email before you can sign in. We've sent a link to the email on your account: click it to sign in.");
+                }
+                text.append(' It works for 24 hours.');
+                currentMode = 'verify';
+                showGoogle();
+                ['loginForm', 'registerForm', 'forgotForm', 'forgotSent', 'switchToRegister', 'switchToLogin', 'backToLogin']
+                    .forEach((id) => { $(id).hidden = true; });
+                $('verifySent').hidden = false;
+                $('sub').textContent = '';
+                $('title').textContent = 'Check your email';
+                document.title = 'Check your email · Cheetah Moon Games';
+                $('title').focus();
+            }
+
             async function submit(form, path, body) {
                 const button = form.querySelector('.primary');
                 button.disabled = true;
@@ -284,11 +315,15 @@
                         body: JSON.stringify({ ...body, next }),
                     });
                     const data = await r.json().catch(() => ({}));
-                    if (r.ok) {
+                    if (data.verify) {
+                        error.textContent = '';
+                        showVerify(r.ok ? data.email : null);
+                    } else if (r.ok) {
                         location.assign(data.next || '/');
                         return;
+                    } else {
+                        fail(data.error || 'Something went wrong. Please try again.');
                     }
-                    fail(data.error || 'Something went wrong. Please try again.');
                 } catch (e) {
                     fail("We couldn't reach the server. Check your connection and try again.");
                 }

@@ -182,6 +182,11 @@ resource "google_cloud_run_v2_service" "bartenders" {
         value = "https://${var.domain_name}/reset-password"
       }
 
+      env {
+        name  = "VERIFY_EMAIL_URL"
+        value = "https://${var.domain_name}/verify-email"
+      }
+
       # "Sign in with Google": Google ID tokens must be issued for this client.
       env {
         name  = "GOOGLE_CLIENT_ID"

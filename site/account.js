@@ -8,7 +8,10 @@
 // server to server:
 //
 //   POST /api/account/login       { username, password, next }
-//   POST /api/account/register    { username, email, password, next }
+//   POST /api/account/register    { username, email, password, next }: makes the
+//                                 account and emails a link to verify the email;
+//                                 it signs in once that's clicked
+//   POST /api/account/verify      { token, next }: verify an email from that link
 //   GET  /api/account/google      { clientId }: for the "Sign in with Google" button
 //   POST /api/account/google      { credential, next }: sign in with Google's ID token
 //   POST /api/account/logout
@@ -16,6 +19,7 @@
 //   POST /api/account/reset       { token, password, next }: set a new password
 //   GET  /api/account/me          who the login cookie belongs to (and their email)
 //   POST /api/account/email       { email }: change the signed-in player's email
+//                                 (once they click a link sent to the new one)
 //   POST /api/account/password    { current, password }: change their password
 //   GET  /api/account/keys/:kid   the public key that checks a login cookie
 //   POST /api/account/seen        { place }: a game saw this signed-in player
@@ -23,7 +27,7 @@
 //   POST /api/account/guest-seen  { name }: a game saw a guest (no account); the
 //                                 game's server sends a Google identity token
 //
-// Bartenders answers login and register with the `userjwt` cookie for the
+// Bartenders answers login (and verifying an email) with the `userjwt` cookie for the
 // whole of cheetahmoongames.com (its COOKIE_DOMAIN), which is passed back to
 // the browser as is. Games read that cookie and check its signature with the
 // key from /api/account/keys (see ADDING_A_GAME.md).
@@ -47,11 +51,15 @@ const PLAYER_MESSAGES = new Set([
   'Password cannot exceed 128 characters',
   'Password must contain at least one letter',
   'Password must contain at least one number',
+  'That email is already used by another account.',
 ]);
 const RENAMED_MESSAGES = {
   'User already exists by name or email': 'That name or email already has an account. Try signing in instead.',
 };
 const RESET_LINK_INVALID = 'This reset link has expired or has already been used. Ask for a new one.';
+const VERIFY_LINK_INVALID = "This link has expired or has already been used. Sign in with your name and password and we'll send you a new one.";
+const NOT_VERIFIED = "Please verify your email first. We've sent you a link: click it to sign in.";
+const EMAIL_TAKEN = 'That email is already used by another account.'; // also in PLAYER_MESSAGES
 const SIGN_IN_FAILED = "That name and password don't match an account.";
 const SIGN_IN_AGAIN = 'Your sign-in has run out. Sign in again to change your account.';
 const WRONG_PASSWORD = "That isn't your current password.";
@@ -155,11 +163,19 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
 
     const payload = { username, password };
     if (kind === 'register') payload.email = typeof body.email === 'string' ? body.email.trim() : '';
+    // Where the verification link brings the player back to.
+    if (next !== '/') payload.next = next;
 
     const r = await upstream(kind === 'register' ? '/register' : '/login', { method: 'POST', body: payload });
-    if (r.status === 200 || r.status === 201) {
+    // A new account isn't signed in: Bartenders has emailed a link to verify it.
+    if (kind === 'register' && r.status === 201) return send(200, { ok: true, verify: true, email: payload.email });
+    if (kind === 'login' && r.status === 200) {
       const name = r.json && r.json.username;
       return send(200, { ok: true, name, next }, { 'Set-Cookie': withLegacyCleared(r.setCookies) });
+    }
+    // The right password, but the email isn't verified: a new link is on its way.
+    if (kind === 'login' && r.status === 403 && r.json && r.json.email_not_verified === true) {
+      return send(403, { error: NOT_VERIFIED, verify: true });
     }
     if (kind === 'login' && (r.status === 401 || r.status === 400)) return send(401, { error: SIGN_IN_FAILED });
     if (kind === 'register' && (r.status === 400 || r.status === 422)) {
@@ -233,6 +249,27 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     return send(502, { error: UNAVAILABLE });
   }
 
+  // Verifies the email from the emailed link and signs the player in with the
+  // cookie Bartenders sends.
+  async function verify(req, send) {
+    const body = await readJson(req);
+    if (!body) return send(400, { error: 'Something went wrong. Please try again.' });
+    const token = typeof body.token === 'string' ? body.token : '';
+    if (!token) return send(400, { error: VERIFY_LINK_INVALID, expired: true });
+    const next = safeNext(body.next, cookieDomain);
+    const r = await upstream('/v1/auth/verify-email/confirm', { method: 'POST', body: { token } });
+    if (r.status === 200) {
+      const name = r.json && r.json.username;
+      return send(200, { ok: true, name, next }, { 'Set-Cookie': withLegacyCleared(r.setCookies) });
+    }
+    if (r.status === 400 || r.status === 422) {
+      const message = r.json && typeof r.json.error === 'string' ? r.json.error : '';
+      if (message === EMAIL_TAKEN) return send(400, { error: EMAIL_TAKEN });
+      return send(400, { error: VERIFY_LINK_INVALID, expired: true });
+    }
+    return send(502, { error: UNAVAILABLE });
+  }
+
   async function signOut(req, send) {
     const cookie = loginCookieValue(req);
     let setCookies = [];
@@ -278,7 +315,8 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     const email = body && typeof body.email === 'string' ? body.email.trim() : '';
     if (!email) return send(400, { error: 'Please enter your new email address.' });
     const r = await upstream('/v1/users/me/email', { method: 'PATCH', body: { new_email: email }, cookie });
-    if (r.status === 200) return send(200, { ok: true, email });
+    // The email changes once the player clicks the link sent to the new one.
+    if (r.status === 200) return send(200, { ok: true, email, pending: !(r.json && r.json.pending === false) });
     if (r.status === 401) return send(401, { error: SIGN_IN_AGAIN });
     if (r.status === 400 || r.status === 422) {
       const message = r.json && typeof r.json.error === 'string' ? r.json.error : '';
@@ -385,6 +423,7 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     else if (p === '/api/account/logout' && req.method === 'POST') work = signOut(req, send);
     else if (p === '/api/account/forgot' && req.method === 'POST') work = forgot(req, send);
     else if (p === '/api/account/reset' && req.method === 'POST') work = reset(req, send);
+    else if (p === '/api/account/verify' && req.method === 'POST') work = verify(req, send);
     else if (p === '/api/account/me' && req.method === 'GET') work = me(req, url, send);
     else if (p === '/api/account/email' && req.method === 'POST') work = changeEmail(req, send);
     else if (p === '/api/account/password' && req.method === 'POST') work = changePassword(req, send);

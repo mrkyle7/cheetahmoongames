@@ -250,9 +250,10 @@
                 const data = await post(f, '/api/account/email', { email }, $('emailMsg'));
                 if (!data) return;
                 if (data.failed) return mark(f.email);
-                showEmail(data.email || email);
                 f.reset();
-                say($('emailMsg'), 'Your email is changed.', 'done');
+                if (data.pending === false) return say($('emailMsg'), 'That’s already your email.', 'done');
+                // The email changes once the link sent to the new one is clicked.
+                say($('emailMsg'), 'We’ve sent a link to ' + (data.email || email) + '. Click it within 24 hours to change your email.', 'done');
             });
 
             $('passwordForm').addEventListener('submit', async (e) => {
