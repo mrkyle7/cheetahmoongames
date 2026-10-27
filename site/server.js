@@ -5,6 +5,7 @@
 //   /            the home page (public/index.html)
 //   /login       sign in or create a Cheetah Moon account (public/login.html)
 //   /reset-password  choose a new password from an emailed link
+//   /verify-email    verify your email from an emailed link, and sign in
 //   /profile     your account: change your email or password (public/profile.html)
 //   /api/account/*  accounts, shared by every game (see account.js)
 //   /assets/*    its images
@@ -136,6 +137,13 @@ function createServer(env = process.env, { fetchImpl } = {}) {
     if (p === '/reset-password' && read) {
       // The token is in the URL: don't pass it on to other sites as a referrer.
       return serveFile(req, res, path.join(PUBLIC_DIR, 'reset-password.html'), {
+        'Cache-Control': NO_CACHE,
+        'Referrer-Policy': 'no-referrer',
+      });
+    }
+
+    if (p === '/verify-email' && read) {
+      return serveFile(req, res, path.join(PUBLIC_DIR, 'verify-email.html'), {
         'Cache-Control': NO_CACHE,
         'Referrer-Policy': 'no-referrer',
       });
