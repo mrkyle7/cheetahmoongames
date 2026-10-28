@@ -131,6 +131,19 @@ locals {
       env = { PLAYERS_BUCKET = "${var.project_name}-spell-battle" }
     }
 
+    fish-tales = {
+      name        = "fish-tales"
+      subdomain   = "fish-tales"
+      github_repo = "mrkyle7/fish-tales"
+
+      # Like Hide And Seek: live games are WebSocket connections and rooms
+      # live in memory, so every player in a room must reach one instance.
+      timeout          = "3600s"
+      session_affinity = true
+      concurrency      = 1000
+      max_instances    = 1
+    }
+
     # Claude's Compaction. It isn't on the home page. It runs in the
     # browser and keeps nothing on the server, so the defaults suit it.
     claude = {
