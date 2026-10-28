@@ -158,6 +158,22 @@ locals {
       concurrency   = 1000
     }
 
+    the-cars = {
+      name        = "the-cars"
+      subdomain   = "cars"
+      github_repo = "mrkyle7/the-cars"
+
+      # Like The Boxer: races are WebSocket connections and rooms live in
+      # memory, so every driver in a room must reach one instance.
+      timeout          = "3600s"
+      session_affinity = true
+      concurrency      = 1000
+      max_instances    = 1
+
+      # Players' records: their car's colour and banked points (the-cars.tf).
+      env = { PLAYERS_BUCKET = "${var.project_name}-the-cars" }
+    }
+
     # Claude's Compaction. It isn't on the home page. It runs in the
     # browser and keeps nothing on the server, so the defaults suit it.
     claude = {
