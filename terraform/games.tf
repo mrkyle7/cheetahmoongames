@@ -144,6 +144,20 @@ locals {
       max_instances    = 1
     }
 
+    secret-mermaids = {
+      name        = "secret-mermaids"
+      subdomain   = "secret-mermaids"
+      github_repo = "mrkyle7/secret-mermaids"
+
+      # Games live in memory, so every player must reach the same instance.
+      # Each open page keeps a server-sent events stream open for updates:
+      # let one last an hour (the page reconnects after) and let one
+      # instance hold many.
+      max_instances = 1
+      timeout       = "3600s"
+      concurrency   = 1000
+    }
+
     # Claude's Compaction. It isn't on the home page. It runs in the
     # browser and keeps nothing on the server, so the defaults suit it.
     claude = {

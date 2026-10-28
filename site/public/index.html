@@ -77,6 +77,8 @@
         .hideseek .art svg { width: 100%; height: 100%; }
         .fishtales .art { background: #9fdcff; }
         .fishtales .art svg { width: 100%; height: 100%; }
+        .mermaids .art { background: #072536; }
+        .mermaids .art svg { width: 100%; height: 100%; }
         .spells .art { background: #2a1d4f; }
         .spells .art svg { width: 100%; height: 100%; }
 
@@ -105,6 +107,7 @@
         .hideseek .play { background: #237a34; }
         .spells .play { background: #6a3fd1; }
         .fishtales .play { background: #1b6fa8; }
+        .mermaids .play { background: #156a85; }
 
         footer {
             margin-top: 44px; color: var(--muted); font-size: 14px;
@@ -331,6 +334,38 @@
                     <h2>Fish Tales</h2>
                     <p>A beach game for 2 to 4 friends, aged 5 and up. Race for pearls in the treasure chests, and hide behind a rock when the rain comes, or your legs turn into a mermaid's tail!</p>
                     <span class="play">Play Fish Tales</span>
+                </div>
+            </a>
+
+            <a class="game mermaids" href="https://secret-mermaids.cheetahmoongames.com/"
+               aria-label="Play Secret Mermaids">
+                <div class="art">
+                    <!-- The game's icon: a mermaid's tail rising out of the sea at night, under the Cheetah Moon. -->
+                    <svg viewBox="-120 0 752 512" aria-hidden="true">
+                        <defs>
+                            <linearGradient id="mermaidsSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b3b52"/><stop offset="1" stop-color="#072536"/></linearGradient>
+                            <linearGradient id="mermaidsTail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7ff0d8"/><stop offset="1" stop-color="#1f9c9a"/></linearGradient>
+                        </defs>
+                        <rect x="-120" width="752" height="512" fill="url(#mermaidsSky)"/>
+                        <circle cx="392" cy="106" r="52" fill="#f3d36b"/>
+                        <circle cx="378" cy="92" r="7" fill="#8a6410"/>
+                        <circle cx="406" cy="114" r="6" fill="#8a6410"/>
+                        <circle cx="386" cy="130" r="6" fill="#8a6410"/>
+                        <path d="M226 372 C222 320 236 270 246 236 L266 236 C276 270 290 320 286 372 Z" fill="url(#mermaidsTail)"/>
+                        <path d="M256 244 C236 206 196 184 150 178 C176 200 200 232 246 250 Z" fill="#7ff0d8"/>
+                        <path d="M256 244 C276 206 316 184 362 178 C336 200 312 232 266 250 Z" fill="#7ff0d8"/>
+                        <g fill="none" stroke="#0e6f73" stroke-width="5" stroke-linecap="round" opacity="0.7">
+                            <path d="M240 336 q16 -9 32 0"/><path d="M242 306 q14 -8 28 0"/><path d="M245 276 q11 -7 22 0"/>
+                        </g>
+                        <path d="M-120 360 C-40 340 40 340 120 360 S200 380 240 360 S320 340 360 360 S540 380 632 356 V512 H-120 Z" fill="#2f8fd8"/>
+                        <path d="M-120 400 C-40 382 48 382 144 400 S240 418 288 400 S384 382 432 400 S560 414 632 404 V512 H-120 Z" fill="#1b5f8a"/>
+                        <path d="M-120 448 C-40 432 112 432 168 448 S280 464 336 448 S448 432 632 446 V512 H-120 Z" fill="#103e5a"/>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>Secret Mermaids</h2>
+                    <p>Some of the sailors on this beach are secretly mermaids. Win tricks to hide from the rain and vote on the tide, and banish whoever you suspect before the sea rises. For 2 to 8 players, with bots to fill the seats.</p>
+                    <span class="play">Play Secret Mermaids</span>
                 </div>
             </a>
 
