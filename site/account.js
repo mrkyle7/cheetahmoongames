@@ -441,7 +441,7 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     return true;
   }
 
-  return { handle };
+  return { handle, upstream };
 }
 
-module.exports = { createAccounts, safeNext, friendlyError };
+module.exports = { createAccounts, safeNext, friendlyError, readJson, loginCookieValue };

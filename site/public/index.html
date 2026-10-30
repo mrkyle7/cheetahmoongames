@@ -488,7 +488,17 @@
                     signedOut();
                     bar.querySelector('a').focus();
                 });
-                bar.append(who, account, out);
+                const family = document.createElement('a');
+                family.href = '/family';
+                family.textContent = 'Family';
+                bar.append(who, account, family, out);
+                // Someone asking to see their games: say so, so they can answer.
+                fetch('/api/family').then((r) => (r.ok ? r.json() : null)).then((f) => {
+                    if (!f || !f.requests || !f.requests.length) return;
+                    family.textContent = `Family (${f.requests.length} asking)`;
+                    family.setAttribute('aria-label', `Family: ${f.requests.length} asking to see your games`);
+                    family.classList.add('asking');
+                }).catch(() => {});
             }).catch(signedOut);
         })();
     </script>

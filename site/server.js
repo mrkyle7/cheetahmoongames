@@ -7,6 +7,9 @@
 //   /reset-password  choose a new password from an emailed link
 //   /verify-email    verify your email from an emailed link, and sign in
 //   /profile     your account: change your email or password (public/profile.html)
+//   /family      parents and their children: see how they're doing in the games
+//                (public/family.html)
+//   /api/family/*  the links between them, kept by Bartenders (see family.js)
 //   /api/account/*  accounts, shared by every game (see account.js)
 //   /assets/*    its images
 //   /sw.js       a service worker that unregisters itself (see below)
@@ -20,7 +23,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { createAccounts } = require('./account');
+const { createAccounts, readJson, loginCookieValue } = require('./account');
+const { createFamily } = require('./family');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
@@ -105,6 +109,12 @@ function serveFile(req, res, filePath, extraHeaders) {
 function createServer(env = process.env, { fetchImpl } = {}) {
   const { bartendersUrl, cookieDomain, googleClientId } = config(env);
   const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl });
+  const family = createFamily({
+    upstream: accounts.upstream,
+    available: Boolean(bartendersUrl),
+    readJson,
+    cookieOf: loginCookieValue,
+  });
 
   return http.createServer((req, res) => {
     let url;
@@ -130,6 +140,10 @@ function createServer(env = process.env, { fetchImpl } = {}) {
       return serveFile(req, res, path.join(PUBLIC_DIR, 'login.html'), { 'Cache-Control': NO_CACHE });
     }
 
+    if (p === '/family' && read) {
+      return serveFile(req, res, path.join(PUBLIC_DIR, 'family.html'), { 'Cache-Control': NO_CACHE });
+    }
+
     if (p === '/profile' && read) {
       return serveFile(req, res, path.join(PUBLIC_DIR, 'profile.html'), { 'Cache-Control': NO_CACHE });
     }
@@ -150,6 +164,7 @@ function createServer(env = process.env, { fetchImpl } = {}) {
     }
 
     if (accounts.handle(req, res, url, send)) return;
+    if (family.handle(req, res, url, send)) return;
 
     if (p === '/sw.js' && read) {
       return send(res, 200, {
