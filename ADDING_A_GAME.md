@@ -239,7 +239,7 @@ Players have one Cheetah Moon account for every game. They sign in or create it 
 
 ## Families
 
-Parents see how their children are doing at `https://cheetahmoongames.com/family`. A parent asks for a child by the email on the child's account, and nothing is shared until the child, signed in, says yes there (the home page shows "Family (1 asking)"). Either can undo it. The links are kept by the home page (`site/family.js`, in the `FAMILY_BUCKET` bucket from `terraform/site.tf`), so every game shares them.
+Parents see how their children are doing at `https://cheetahmoongames.com/family`. A parent asks for a child by the email on the child's account, and nothing is shared until the child, signed in, says yes there (the home page shows "Family (1 asking)"). Either can undo it. The links are kept in Bartenders, beside the accounts (its `app/family.py`, in Supabase), and the home page passes requests on (`site/family.js`), so every game shares them.
 
 A game that has something to show parents:
 

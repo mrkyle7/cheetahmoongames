@@ -59,7 +59,7 @@ site/                  the home page: a small Node server with no dependencies
   public/verify-email.html    verify your email from an emailed link
   public/profile.html  your account: change your email or password
   public/family.html   parents and their children: see how they're doing in the games
-  family.js            /api/family/*: who's whose parent (FAMILY_BUCKET)
+  family.js            /api/family/*: who's whose parent, passed on to Bartenders
   account.js           /api/account/*: sign-in, passed on to Bartenders
 terraform/
   games.tf             the list of games (edit this to add one)

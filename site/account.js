@@ -398,17 +398,6 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     return send(entry.status, entry.body, entry.headers);
   }
 
-  // Who a login cookie belongs to: { id, name, email }, or null if it's not
-  // a signed-in account's. Throws if Bartenders can't be asked.
-  async function whoIs(cookie) {
-    const r = await upstream('/userDetails', { cookie, headers: { 'X-Cheetah-Moon-Home': '1' } });
-    if (r.status === 200 && r.json && r.json.username && r.json.id !== undefined) {
-      return { id: String(r.json.id), name: r.json.username, email: typeof r.json.email === 'string' ? r.json.email : '' };
-    }
-    if (r.status === 401 || r.status === 404) return null;
-    throw new Error(`userDetails answered ${r.status}`);
-  }
-
   // Handles /api/account/* (returns true), or leaves the request alone.
   function handle(req, res, url, sendRaw) {
     const p = url.pathname;
@@ -452,7 +441,7 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     return true;
   }
 
-  return { handle, whoIs };
+  return { handle, upstream };
 }
 
 module.exports = { createAccounts, safeNext, friendlyError, readJson, loginCookieValue };
