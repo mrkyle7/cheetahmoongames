@@ -238,3 +238,23 @@ test("a guest report asks Cloud Run's metadata server for this service's identit
   assert.strictEqual(calls[1].url, 'https://cheetahmoongames.com/api/account/guest-seen');
   assert.strictEqual(calls[1].headers.Authorization, 'Bearer id.token.value');
 });
+
+test("a parent's children come from the accounts service, with their own cookie, once a minute", async () => {
+  let clock = 1_000_000;
+  const asked = [];
+  const a = auth({
+    now: () => clock,
+    fetchChildren: async (t) => { asked.push(t); return [{ id: 'kid-1', name: 'Zed' }]; },
+  });
+  const tok = token();
+  assert.deepStrictEqual(await a.children(req(`userjwt=${tok}`)), [{ id: 'kid-1', name: 'Zed' }]);
+  await a.children(req(`userjwt=${tok}`));
+  assert.deepStrictEqual(asked, [tok]);
+  clock += 61_000;
+  await a.children(req(`userjwt=${tok}`));
+  assert.strictEqual(asked.length, 2);
+  // Nobody signed in, or a forged cookie: no children, and nothing asked.
+  assert.deepStrictEqual(await a.children(req(undefined)), []);
+  assert.deepStrictEqual(await a.children(req('userjwt=nope')), []);
+  assert.strictEqual(asked.length, 2);
+});

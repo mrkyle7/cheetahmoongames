@@ -7,6 +7,9 @@
 //   /reset-password  choose a new password from an emailed link
 //   /verify-email    verify your email from an emailed link, and sign in
 //   /profile     your account: change your email or password (public/profile.html)
+//   /family      parents and their children: see how they're doing in the games
+//                (public/family.html)
+//   /api/family/*  the links between them (see family.js)
 //   /api/account/*  accounts, shared by every game (see account.js)
 //   /assets/*    its images
 //   /sw.js       a service worker that unregisters itself (see below)
@@ -20,7 +23,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { createAccounts } = require('./account');
+const { createAccounts, readJson, loginCookieValue } = require('./account');
+const { createLinks, createFamily } = require('./family');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
@@ -55,6 +59,9 @@ function config(env = process.env) {
     // The OAuth client ID for "Sign in with Google". Not a secret: it's on
     // the sign-in page for anyone to read. Unset, the button isn't shown.
     googleClientId: (env.GOOGLE_CLIENT_ID || '').trim(),
+    // Where parents' links to their children are kept (family.js). Unset
+    // (locally, in tests), they're kept in memory.
+    familyBucket: (env.FAMILY_BUCKET || '').trim(),
   };
 }
 
@@ -102,9 +109,15 @@ function serveFile(req, res, filePath, extraHeaders) {
   });
 }
 
-function createServer(env = process.env, { fetchImpl } = {}) {
-  const { bartendersUrl, cookieDomain, googleClientId } = config(env);
+function createServer(env = process.env, { fetchImpl, links } = {}) {
+  const { bartendersUrl, cookieDomain, googleClientId, familyBucket } = config(env);
   const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl });
+  const family = createFamily({
+    links: links || createLinks({ bucket: familyBucket, fetchFn: fetchImpl || globalThis.fetch }),
+    whoIs: accounts.whoIs,
+    readJson,
+    cookieOf: loginCookieValue,
+  });
 
   return http.createServer((req, res) => {
     let url;
@@ -130,6 +143,10 @@ function createServer(env = process.env, { fetchImpl } = {}) {
       return serveFile(req, res, path.join(PUBLIC_DIR, 'login.html'), { 'Cache-Control': NO_CACHE });
     }
 
+    if (p === '/family' && read) {
+      return serveFile(req, res, path.join(PUBLIC_DIR, 'family.html'), { 'Cache-Control': NO_CACHE });
+    }
+
     if (p === '/profile' && read) {
       return serveFile(req, res, path.join(PUBLIC_DIR, 'profile.html'), { 'Cache-Control': NO_CACHE });
     }
@@ -150,6 +167,7 @@ function createServer(env = process.env, { fetchImpl } = {}) {
     }
 
     if (accounts.handle(req, res, url, send)) return;
+    if (family.handle(req, res, url, send)) return;
 
     if (p === '/sw.js' && read) {
       return send(res, 200, {

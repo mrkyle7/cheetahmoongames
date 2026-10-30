@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Family · Cheetah Moon Games</title>
+    <meta name="description" content="Parents: see how your children are doing in Cheetah Moon games.">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <link rel="stylesheet" href="/assets/site.css">
+    <style>
+        main {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 48px 16px 40px;
+        }
+
+        .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; font-weight: 700; }
+        .brand .moon { width: 36px; height: 36px; }
+        .brand:focus-visible { outline: 3px solid var(--moon); outline-offset: 4px; border-radius: 4px; }
+
+        .panel {
+            margin-top: 22px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 24px 24px 22px;
+        }
+
+        h1 { margin: 0; font-size: 28px; line-height: 1.15; }
+        h2 { margin: 0 0 4px; font-size: 19px; }
+        .sub { margin: 6px 0 0; color: var(--muted); }
+        .sub strong { color: var(--text); font-weight: 600; }
+        .lead { margin: 0 0 16px; color: var(--muted); font-size: 15px; }
+        .lead strong { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+
+        form { display: grid; gap: 16px; }
+        label { display: grid; gap: 6px; font-weight: 600; font-size: 15px; }
+        .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+        input {
+            font: inherit;
+            color: var(--text);
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 11px 12px;
+            width: 100%;
+        }
+        input:focus { outline: 3px solid var(--moon); outline-offset: 1px; border-color: transparent; }
+        input[aria-invalid="true"] { border-color: var(--danger); }
+
+        .password { position: relative; }
+        .password input { padding-right: 64px; }
+        .reveal {
+            position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+            font: inherit; font-size: 13px; font-weight: 600;
+            color: var(--muted); background: none; border: 0; padding: 6px 8px; cursor: pointer; border-radius: 4px;
+        }
+        .reveal:hover { color: var(--text); }
+        .reveal:focus-visible { outline: 2px solid var(--moon); }
+
+        .primary {
+            justify-self: start;
+            font: inherit; font-weight: 700;
+            color: #1a1405;
+            background: var(--moon);
+            border: 0; border-radius: 6px;
+            padding: 12px 18px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .primary:hover { background: #f7df8d; }
+        .primary:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+        .primary[disabled] { opacity: 0.6; cursor: progress; }
+
+        .msg { margin: 0; padding: 10px 12px; border-radius: 4px; }
+        .msg:empty { display: none; }
+        .msg.error { border-left: 4px solid var(--danger); background: rgba(255, 107, 107, 0.1); }
+        .msg.done { border-left: 4px solid #3fae74; background: rgba(63, 174, 116, 0.12); }
+
+        .link {
+            font: inherit; color: var(--moon); background: none; border: 0; padding: 0;
+            text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+        }
+        .link:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
+
+        .foot { margin: 22px 0 0; display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; color: var(--muted); }
+        .loading { margin: 22px 0 0; color: var(--muted); }
+
+        .people { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+        .people li { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+        .people .who { font-weight: 600; overflow-wrap: anywhere; }
+        .actions { display: flex; gap: 10px; }
+        .quiet { font: inherit; font-weight: 600; color: var(--text); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+        .quiet:focus-visible { outline: 3px solid var(--moon); outline-offset: 2px; }
+        .child { margin-top: 22px; }
+        .game { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+        .game h3 { margin: 0 0 6px; font-size: 16px; }
+        .game h4 { margin: 10px 0 4px; font-size: 15px; }
+        .game ul { margin: 0; padding-left: 20px; color: var(--muted); }
+        .game li { margin: 2px 0; }
+        .empty { color: var(--muted); margin: 0; }
+
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <main>
+        <a class="brand" href="/" aria-label="Cheetah Moon Games home">
+            <span class="moon" aria-hidden="true"><span></span><span></span><span></span></span>
+            Cheetah Moon Games
+        </a>
+
+        <p class="loading" id="loading">Checking who's signed in&hellip;</p>
+        <p class="msg error" id="pageError" role="alert"></p>
+
+        <div id="family" hidden>
+            <section class="panel" aria-labelledby="title">
+                <h1 id="title">Family</h1>
+                <p class="sub">Signed in as <strong id="name"></strong>. Parents can see how their children are doing in the games, once each child says yes.</p>
+            </section>
+
+            <section class="panel" id="requestsPanel" aria-labelledby="requestsTitle" hidden>
+                <h2 id="requestsTitle">Asking to see your games</h2>
+                <p class="lead">They'd see how you're doing in the games, like the words you've spelled. Say yes only if they're your parent or carer.</p>
+                <ul class="people" id="requests"></ul>
+            </section>
+
+            <div id="children"></div>
+
+            <section class="panel" aria-labelledby="addTitle">
+                <h2 id="addTitle">Add a child</h2>
+                <p class="lead">Enter the email on your child's Cheetah Moon account. Next time they're signed in here, they'll be asked to say yes.</p>
+                <form id="askForm" novalidate>
+                    <label>Your child's email
+                        <input id="childEmail" name="email" type="email" autocomplete="off" required maxlength="254">
+                    </label>
+                    <p class="msg" id="askMsg" role="status" aria-live="polite"></p>
+                    <button class="primary" type="submit">Ask</button>
+                </form>
+                <div id="askedBox" hidden>
+                    <h2 style="margin-top:18px">Waiting for a yes</h2>
+                    <ul class="people" id="asked"></ul>
+                </div>
+            </section>
+
+            <section class="panel" id="parentsPanel" aria-labelledby="parentsTitle" hidden>
+                <h2 id="parentsTitle">Your parents</h2>
+                <p class="lead">They can see how you're doing in the games.</p>
+                <ul class="people" id="parents"></ul>
+            </section>
+
+            <p class="foot">
+                <a class="link" href="/">&larr; All games</a>
+                <a class="link" href="/profile">Your account</a>
+            </p>
+        </div>
+    </main>
+    <script>
+        (function () {
+            const $ = (id) => document.getElementById(id);
+            const GENERIC = 'Something went wrong. Please try again.';
+            // Games that show parents how their children are doing: each answers
+            // GET <url>/api/family (see "Families" in ADDING_A_GAME.md).
+            const GAMES = [
+                { name: 'Spell Battle', url: 'https://spell-battle.cheetahmoongames.com' },
+            ];
+
+            function el(tag, text, cls) {
+                const e = document.createElement(tag);
+                if (text !== undefined) e.textContent = text;
+                if (cls) e.className = cls;
+                return e;
+            }
+            function say(text, kind) {
+                const m = $('askMsg');
+                m.className = 'msg' + (kind ? ' ' + kind : '');
+                m.textContent = text;
+            }
+
+            async function api(path, body) {
+                const r = await fetch(path, body === undefined ? {} : {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                });
+                const data = await r.json().catch(() => ({}));
+                if (r.status === 401) { location.replace('/login?next=' + encodeURIComponent('/family')); return null; }
+                if (!r.ok) throw new Error(data.error || GENERIC);
+                return data;
+            }
+
+            // What each game says about the children: { children: [{ id, sections: [{ title, lines }] }] }.
+            const fromGames = GAMES.map((game) => fetch(game.url + '/api/family', { credentials: 'include' })
+                .then((r) => (r.ok ? r.json() : { children: [] }))
+                .then((data) => ({ game, children: Array.isArray(data.children) ? data.children : [] }))
+                .catch(() => ({ game, children: [] })));
+
+            function personRow(name, buttons) {
+                const li = el('li');
+                const actions = el('div', undefined, 'actions');
+                actions.append(...buttons);
+                li.append(el('span', name, 'who'), actions);
+                return li;
+            }
+            function button(text, cls, fn) {
+                const b = el('button', text, cls);
+                b.type = 'button';
+                b.addEventListener('click', async () => {
+                    b.disabled = true;
+                    try { const v = await fn(); if (v) show(v); } catch (e) { say(e.message, 'error'); } finally { b.disabled = false; }
+                });
+                return b;
+            }
+
+            async function showChild(child) {
+                const panel = el('section', undefined, 'panel child');
+                panel.append(el('h2', child.name));
+                const holder = el('div');
+                holder.append(el('p', 'Loading their games…', 'empty'));
+                panel.append(holder);
+                const undo = el('p');
+                undo.style.margin = '14px 0 0';
+                undo.append(button('Stop seeing ' + child.name + "'s games", 'quiet', () => api('/api/family/remove', { id: child.id })));
+                panel.append(undo);
+                $('children').append(panel);
+                const games = await Promise.all(fromGames);
+                holder.replaceChildren();
+                let any = false;
+                for (const { game, children } of games) {
+                    const mine = children.find((c) => String(c.id) === String(child.id));
+                    if (!mine || !Array.isArray(mine.sections) || !mine.sections.length) continue;
+                    any = true;
+                    const box = el('div', undefined, 'game');
+                    const h = el('h3');
+                    const a = el('a', game.name, 'link');
+                    a.href = game.url;
+                    h.append(a);
+                    box.append(h);
+                    for (const s of mine.sections) {
+                        box.append(el('h4', s.title));
+                        const ul = el('ul');
+                        for (const line of s.lines || []) ul.append(el('li', line));
+                        box.append(ul);
+                    }
+                    holder.append(box);
+                }
+                if (!any) holder.append(el('p', "Nothing to show yet: they haven't played a game that shares how they're doing.", 'empty'));
+            }
+
+            function show(v) {
+                $('name').textContent = v.me.name;
+                $('requests').replaceChildren(...v.requests.map((p) => personRow(p.name, [
+                    button('Yes', 'primary', () => api('/api/family/answer', { parent: p.id, allow: true })),
+                    button('No', 'quiet', () => api('/api/family/answer', { parent: p.id, allow: false })),
+                ])));
+                $('requestsPanel').hidden = !v.requests.length;
+                $('children').replaceChildren();
+                v.children.forEach(showChild);
+                $('asked').replaceChildren(...v.asked.map((email) => personRow(email, [
+                    button('Stop asking', 'quiet', () => api('/api/family/unask', { email })),
+                ])));
+                $('askedBox').hidden = !v.asked.length;
+                $('parents').replaceChildren(...v.parents.map((p) => personRow(p.name, [
+                    button('Stop sharing', 'quiet', () => api('/api/family/remove', { id: p.id })),
+                ])));
+                $('parentsPanel').hidden = !v.parents.length;
+                $('loading').hidden = true;
+                $('family').hidden = false;
+            }
+
+            api('/api/family').then((v) => { if (v) show(v); }).catch(() => {
+                $('loading').hidden = true;
+                $('pageError').textContent = "Your family can't be loaded right now. Please try again in a minute.";
+            });
+
+            $('askForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const email = f.email.value.trim();
+                if (!email || !f.email.checkValidity()) return say('Please enter an email address like name@example.com.', 'error');
+                try {
+                    const v = await api('/api/family/ask', { email });
+                    if (!v) return;
+                    f.reset();
+                    show(v);
+                    say('Asked! Next time they sign in at cheetahmoongames.com, they can say yes.', 'done');
+                } catch (err) {
+                    say(err.message, 'error');
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

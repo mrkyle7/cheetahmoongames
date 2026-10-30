@@ -237,6 +237,23 @@ Players have one Cheetah Moon account for every game. They sign in or create it 
 - **Rules:** don't log the cookie, store it or send it anywhere but `auth.js` (which only sends it back to the accounts service), and don't build your own sign-in. The browser page can't read the cookie (it's `HttpOnly`); ask your own server, e.g. the skeleton's `/api/me`.
 - **Running locally:** cookies on `localhost` are shared between ports. Run Bartenders and the home page locally (`BARTENDERS_URL=http://localhost:8000 npm start` in `site/`), sign in at `http://localhost:8080/login`, and start the game with `ACCOUNTS_URL=http://localhost:8080`. Tests don't need any of that: sign tokens with a throwaway key and pass `fetchKey` to `createAuth` (see the skeleton's `test/auth.test.js`).
 
+## Families
+
+Parents see how their children are doing at `https://cheetahmoongames.com/family`. A parent asks for a child by the email on the child's account, and nothing is shared until the child, signed in, says yes there (the home page shows "Family (1 asking)"). Either can undo it. The links are kept by the home page (`site/family.js`, in the `FAMILY_BUCKET` bucket from `terraform/site.tf`), so every game shares them.
+
+A game that has something to show parents:
+
+- **Answers `GET /api/family`** with what it knows about the signed-in player's children:
+
+  ```js
+  const kids = await auth.children(req);   // [{ id, name }]: theirs, once each said yes
+  // { children: [{ id, sections: [{ title, lines: ['Spelled 12 of 15 words right first time', ...] }] }] }
+  ```
+
+  Only children from `auth.children(req)`, never ids from the request. Keep it to what a parent would want, in plain words.
+- **Lets the home page ask, with the parent's cookie:** reply to `/api/family` (and its `OPTIONS` preflight) with `Access-Control-Allow-Origin: https://cheetahmoongames.com`, `Access-Control-Allow-Credentials: true` and `Vary: Origin`. The cookie is `SameSite=Strict`, which still sends it from the home page, because the games are on the same site.
+- **Is listed in `GAMES` in `site/public/family.html`**, so the page asks it.
+
 ## Things to know
 
 - **Games that need secrets or a database.** See [below](#games-that-need-secrets-or-a-database).

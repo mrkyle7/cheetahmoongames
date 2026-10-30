@@ -58,6 +58,8 @@ site/                  the home page: a small Node server with no dependencies
   public/reset-password.html  choose a new password from an emailed link
   public/verify-email.html    verify your email from an emailed link
   public/profile.html  your account: change your email or password
+  public/family.html   parents and their children: see how they're doing in the games
+  family.js            /api/family/*: who's whose parent (FAMILY_BUCKET)
   account.js           /api/account/*: sign-in, passed on to Bartenders
 terraform/
   games.tf             the list of games (edit this to add one)
@@ -95,13 +97,13 @@ npm test
 BARTENDERS_URL=https://bartenders.cheetahmoongames.com npm start   # http://localhost:8080
 ```
 
-**Signing in.** `/login` is where players sign in (with their name and password, or with Google), create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. Creating an account doesn't sign the player in: Bartenders emails a link that opens `/verify-email`, and they're signed in once they click it. Until then, signing in with their password sends a new link instead (Google sign-in and a password reset count as verifying). `/profile` is a signed-in player's account page, for changing their email or password (Bartenders' `/profile` redirects here). `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
+**Signing in.** `/login` is where players sign in (with their name and password, or with Google), create an account or ask for a password reset link, for every game. The link in the email opens `/reset-password`. Creating an account doesn't sign the player in: Bartenders emails a link that opens `/verify-email`, and they're signed in once they click it. Until then, signing in with their password sends a new link instead (Google sign-in and a password reset count as verifying). `/profile` is a signed-in player's account page, for changing their email or password (Bartenders' `/profile` redirects here). `/family` is where parents ask for their children by email, children say yes, and parents see how they're doing in the games (`site/family.js`; see "Families" in [ADDING_A_GAME.md](ADDING_A_GAME.md#families)). `site/account.js` serves `/api/account/*` and passes each request on to Bartenders, which holds the accounts. See "Players and signing in" in [ADDING_A_GAME.md](ADDING_A_GAME.md#players-and-signing-in) for how games use it.
 
 **Login alerts.** The account named by `login_alerts_to` (`terraform/variables.tf`, `kyle`) gets a push notification, on the devices where it turned on Bartenders notifications, when a player turns up after 6+ hours away: signing in, or opening the home page or any game with a saved sign-in. Nothing more until they've been away 6 hours again. Games report the players they see through their `auth.js` to `/api/account/seen`, which passes it to Bartenders; the home page's own visits are counted when it asks Bartenders who's signed in. Guests (people playing The Boxer or Catch the Flag under a typed name) count too, per game and name: the game's server reports them with `auth.guestSeen(name)`, which vouches for them with a Google identity token for the game's Cloud Run service account, passed on by `/api/account/guest-seen`. Bartenders' `app/activity.py` decides who's back.
 
 Besides that, the server handles traffic for Bartenders, which used to live on this domain:
 
-- Every path other than `/`, `/login`, `/reset-password`, `/verify-email`, `/profile`, `/api/account/*`, `/assets/*`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
+- Every path other than `/`, `/login`, `/reset-password`, `/verify-email`, `/profile`, `/family`, `/api/account/*`, `/api/family/*`, `/assets/*`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
 - `/sw.js` serves a service worker that unregisters itself, which clears out the one Bartenders installed on this domain.
 - A Bartenders login cookie from before the move only belongs to this domain. The server moves it onto `COOKIE_DOMAIN` (the whole of `cheetahmoongames.com`), so players stay logged in when they follow a link to the game.
 

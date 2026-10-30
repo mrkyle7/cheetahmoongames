@@ -28,6 +28,13 @@
 //   const player = await auth.player(req);   // { id, name } or null
 //   auth.loginUrl('https://snap.cheetahmoongames.com/')   // send them to sign in
 //   auth.guestSeen('Bob')                    // a guest started playing
+//   await auth.children(req)                 // a parent's children: [{ id, name }]
+//
+// Parents link to their children at cheetahmoongames.com/family (once each
+// child says yes). A game that shows parents how their children are doing
+// asks auth.children(req): it sends the player's own cookie back to the
+// accounts service (GET <ACCOUNTS_URL>/api/family/children), at most once a
+// minute per player. See "Families" in ADDING_A_GAME.md.
 //
 // No dependencies: Node's crypto does the checking.
 
@@ -37,6 +44,7 @@ const COOKIE_NAME = 'userjwt';
 const DEFAULT_ACCOUNTS_URL = 'https://cheetahmoongames.com';
 const MISSING_KEY_RETRY_MS = 60 * 1000;
 const REPORT_EVERY_MS = 5 * 60 * 1000;
+const CHILDREN_TTL_MS = 60 * 1000;
 // Who Bartenders accepts guest reports from: identity tokens made out to this.
 const GAME_AUDIENCE = 'https://cheetahmoongames.com';
 const METADATA_IDENTITY = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity';
@@ -70,6 +78,7 @@ function createAuth({
   place = process.env.K_SERVICE || null, // this game, for reporting players seen
   reportSeen, // (token, place) => Promise; tests pass their own
   reportGuest, // (name) => Promise; tests pass their own
+  fetchChildren, // (token) => Promise<[{ id, name }]>; tests pass their own
   metadataUrl = METADATA_IDENTITY, // tests point it at a stand-in
 } = {}) {
   const base = accountsUrl.replace(/\/+$/, '');
@@ -207,12 +216,41 @@ function createAuth({
     });
   }
 
+  const defaultFetchChildren = async (token) => {
+    const r = await fetch(`${base}/api/family/children`, {
+      headers: { Cookie: `${COOKIE_NAME}=${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (r.status === 401) return [];
+    if (!r.ok) throw new Error(`accounts service answered ${r.status}`);
+    const body = await r.json();
+    return Array.isArray(body.children) ? body.children.filter((c) => c && typeof c.id === 'string' && typeof c.name === 'string') : [];
+  };
+  const loadChildren = fetchChildren || defaultFetchChildren;
+  const childrenOf = new Map(); // player id -> { list: Promise, at }
+
+  // The children of the signed-in player making this request, linked at
+  // cheetahmoongames.com/family: [{ id, name }], or [] (not signed in, or
+  // none). Remembered for a minute.
+  async function children(req) {
+    const token = cookieValue(req && req.headers && req.headers.cookie);
+    const who = token ? await verify(token) : null;
+    if (!who) return [];
+    const cached = childrenOf.get(who.id);
+    if (cached && now() - cached.at < CHILDREN_TTL_MS) return cached.list;
+    if (childrenOf.size > 10_000) childrenOf.clear();
+    const entry = { at: now(), list: Promise.resolve().then(() => loadChildren(token)) };
+    entry.list.catch(() => childrenOf.delete(who.id));
+    childrenOf.set(who.id, entry);
+    return entry.list;
+  }
+
   // Where to send someone to sign in; they come back to `returnTo` after.
   function loginUrl(returnTo) {
     return `${base}/login${returnTo ? `?next=${encodeURIComponent(returnTo)}` : ''}`;
   }
 
-  return { player, verify, loginUrl, guestSeen, accountsUrl: base };
+  return { player, verify, loginUrl, guestSeen, children, accountsUrl: base };
 }
 
 module.exports = { createAuth, cookieValue, COOKIE_NAME };
