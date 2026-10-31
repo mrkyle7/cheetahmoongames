@@ -185,8 +185,16 @@ test('me reports the signed-in player, passing only the login cookie on', async 
     const res = await req('GET', '/api/account/me?next=https%3A%2F%2Fevil.example%2F', {
       headers: { cookie: 'theme=dark; userjwt=tok' },
     });
-    assert.deepStrictEqual(res.json, { signedIn: true, name: 'Ann', id: 'u1', next: '/', email: 'ann@example.com' });
+    assert.deepStrictEqual(res.json, { signedIn: true, name: 'Ann', id: 'u1', next: '/', email: 'ann@example.com', admin: false });
     assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=tok');
+  });
+});
+
+test("me says whether the player is one of the site's admins", async () => {
+  const bartenders = fakeBartenders({ 'GET /userDetails': { body: { username: 'Kyle', id: 'u9', is_admin: true } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me', { headers: { cookie: 'userjwt=tok' } });
+    assert.strictEqual(res.json.admin, true);
   });
 });
 
@@ -583,7 +591,7 @@ test('who is signed in says whether the account has a password and a linked Goog
   await withServer(ENV, bartenders, async (req) => {
     const res = await req('GET', '/api/account/me', { headers: { Cookie: 'userjwt=tok' } });
     assert.deepStrictEqual(res.json, {
-      signedIn: true, name: 'Ada', id: 'u1', next: '/', email: 'ada@example.com', hasPassword: false, google: true,
+      signedIn: true, name: 'Ada', id: 'u1', next: '/', email: 'ada@example.com', hasPassword: false, google: true, admin: false,
     });
   });
 });

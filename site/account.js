@@ -300,6 +300,8 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
       // How the account signs in: an account made with Google has no password.
       if (typeof r.json.has_password === 'boolean') body.hasPassword = r.json.has_password;
       if (typeof r.json.google_linked === 'boolean') body.google = r.json.google_linked;
+      // The site's admins (Bartenders' is_admin), for games' admin pages.
+      body.admin = r.json.is_admin === true;
       return send(200, body);
     }
     if (r.status === 401 || r.status === 404) return send(200, { signedIn: false });

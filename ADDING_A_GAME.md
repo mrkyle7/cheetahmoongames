@@ -237,6 +237,10 @@ Players have one Cheetah Moon account for every game. They sign in or create it 
 - **Rules:** don't log the cookie, store it or send it anywhere but `auth.js` (which only sends it back to the accounts service), and don't build your own sign-in. The browser page can't read the cookie (it's `HttpOnly`); ask your own server, e.g. the skeleton's `/api/me`.
 - **Running locally:** cookies on `localhost` are shared between ports. Run Bartenders and the home page locally (`BARTENDERS_URL=http://localhost:8000 npm start` in `site/`), sign in at `http://localhost:8080/login`, and start the game with `ACCOUNTS_URL=http://localhost:8080`. Tests don't need any of that: sign tokens with a throwaway key and pass `fetchKey` to `createAuth` (see the skeleton's `test/auth.test.js`).
 
+## Admin pages
+
+A game can have pages only the site's admins see (Bartenders' `is_admin` accounts), for example to check its content. `await auth.isAdmin(req)` says whether the signed-in player is one: it asks the accounts service (`/api/account/me`, which says `admin`) with their own cookie, at most every 5 minutes per player, and is false when nobody's signed in or it can't ask. Check it on the server before serving the page or its data; showing a link only to admins isn't enough on its own.
+
 ## Families
 
 Parents see how their children are doing at `https://cheetahmoongames.com/family`. A parent asks for a child by the email on the child's account, and nothing is shared until the child, signed in, says yes there (the home page shows "Family (1 asking)"). Either can undo it. The links are kept in Bartenders, beside the accounts (its `app/family.py`, in Supabase), and the home page passes requests on (`site/family.js`), so every game shares them.
