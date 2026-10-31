@@ -29,6 +29,7 @@
 //   auth.loginUrl('https://snap.cheetahmoongames.com/')   // send them to sign in
 //   auth.guestSeen('Bob')                    // a guest started playing
 //   await auth.children(req)                 // a parent's children: [{ id, name }]
+//   await auth.isAdmin(req)                  // whether they're one of the site's admins
 //
 // Parents link to their children at cheetahmoongames.com/family (once each
 // child says yes). A game that shows parents how their children are doing
@@ -45,6 +46,7 @@ const DEFAULT_ACCOUNTS_URL = 'https://cheetahmoongames.com';
 const MISSING_KEY_RETRY_MS = 60 * 1000;
 const REPORT_EVERY_MS = 5 * 60 * 1000;
 const CHILDREN_TTL_MS = 60 * 1000;
+const ADMIN_TTL_MS = 5 * 60 * 1000;
 // Who Bartenders accepts guest reports from: identity tokens made out to this.
 const GAME_AUDIENCE = 'https://cheetahmoongames.com';
 const METADATA_IDENTITY = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity';
@@ -79,6 +81,7 @@ function createAuth({
   reportSeen, // (token, place) => Promise; tests pass their own
   reportGuest, // (name) => Promise; tests pass their own
   fetchChildren, // (token) => Promise<[{ id, name }]>; tests pass their own
+  fetchAdmin, // (token) => Promise<boolean>; tests pass their own
   metadataUrl = METADATA_IDENTITY, // tests point it at a stand-in
 } = {}) {
   const base = accountsUrl.replace(/\/+$/, '');
@@ -245,12 +248,39 @@ function createAuth({
     return entry.list;
   }
 
+  const defaultFetchAdmin = async (token) => {
+    const r = await fetch(`${base}/api/account/me`, {
+      headers: { Cookie: `${COOKIE_NAME}=${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) throw new Error(`accounts service answered ${r.status}`);
+    return (await r.json()).admin === true;
+  };
+  const loadAdmin = fetchAdmin || defaultFetchAdmin;
+  const adminOf = new Map(); // player id -> { is: Promise<boolean>, at }
+
+  // Whether the signed-in player making this request is one of the site's
+  // admins (Bartenders' is_admin), for a game's admin pages: asked of the
+  // accounts service with their own cookie, remembered for 5 minutes. False
+  // if not signed in, or if it can't be asked.
+  async function isAdmin(req) {
+    const token = cookieValue(req && req.headers && req.headers.cookie);
+    const who = token ? await verify(token) : null;
+    if (!who) return false;
+    const cached = adminOf.get(who.id);
+    if (cached && now() - cached.at < ADMIN_TTL_MS) return cached.is;
+    if (adminOf.size > 10_000) adminOf.clear();
+    const entry = { at: now(), is: Promise.resolve().then(() => loadAdmin(token)).catch(() => false) };
+    adminOf.set(who.id, entry);
+    return entry.is;
+  }
+
   // Where to send someone to sign in; they come back to `returnTo` after.
   function loginUrl(returnTo) {
     return `${base}/login${returnTo ? `?next=${encodeURIComponent(returnTo)}` : ''}`;
   }
 
-  return { player, verify, loginUrl, guestSeen, children, accountsUrl: base };
+  return { player, verify, loginUrl, guestSeen, children, isAdmin, accountsUrl: base };
 }
 
 module.exports = { createAuth, cookieValue, COOKIE_NAME };

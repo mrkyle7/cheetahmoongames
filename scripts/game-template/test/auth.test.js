@@ -258,3 +258,18 @@ test("a parent's children come from the accounts service, with their own cookie,
   assert.deepStrictEqual(await a.children(req('userjwt=nope')), []);
   assert.strictEqual(asked.length, 2);
 });
+
+test("whether a player is one of the site's admins, asked with their own cookie, every 5 minutes", async () => {
+  let clock = 1_000_000;
+  const asked = [];
+  const a = auth({ now: () => clock, fetchAdmin: async (t) => { asked.push(t); return true; } });
+  const tok = token();
+  assert.strictEqual(await a.isAdmin(req(`userjwt=${tok}`)), true);
+  await a.isAdmin(req(`userjwt=${tok}`));
+  assert.strictEqual(asked.length, 1);
+  clock += 6 * 60 * 1000;
+  await a.isAdmin(req(`userjwt=${tok}`));
+  assert.strictEqual(asked.length, 2);
+  assert.strictEqual(await a.isAdmin(req(undefined)), false);
+  assert.strictEqual(await auth({ fetchAdmin: async () => { throw new Error('down'); } }).isAdmin(req(`userjwt=${tok}`)), false, "can't ask: not an admin");
+});
