@@ -174,6 +174,20 @@ locals {
       env = { PLAYERS_BUCKET = "${var.project_name}-the-cars" }
     }
 
+    the-pirates = {
+      name        = "the-pirates"
+      subdomain   = "pirates"
+      github_repo = "mrkyle7/the-pirates"
+
+      # Games live in memory, so every captain in a game must reach the same
+      # instance. Each open page keeps a server-sent events stream open for
+      # updates: let one last an hour (the page reconnects after) and let one
+      # instance hold many.
+      max_instances = 1
+      timeout       = "3600s"
+      concurrency   = 1000
+    }
+
     # Claude's Compaction. It isn't on the home page. It runs in the
     # browser and keeps nothing on the server, so the defaults suit it.
     claude = {
