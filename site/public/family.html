@@ -181,7 +181,7 @@
 
             <p class="foot">
                 <a class="link" href="/">&larr; All games</a>
-                <a class="link" href="/profile">Your account</a>
+                <a class="link" href="/profile" id="profileLink">Your account</a>
             </p>
         </div>
     </main>
@@ -316,6 +316,7 @@
                 $('childPanel').hidden = !v.childAccount;
                 $('makePanel').hidden = Boolean(v.childAccount);
                 $('addPanel').hidden = Boolean(v.childAccount);
+                $('profileLink').hidden = Boolean(v.childAccount);
                 $('childName').textContent = v.me.name;
                 $('loading').hidden = true;
                 $('family').hidden = false;
