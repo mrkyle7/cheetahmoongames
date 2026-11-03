@@ -21,6 +21,10 @@
 //   POST /api/account/email       { email }: change the signed-in player's email
 //                                 (once they click a link sent to the new one)
 //   POST /api/account/password    { current, password }: change their password
+//   POST /api/account/switch      { id, next }: a parent switches to one of the
+//                                 child accounts they made, to let them play
+//   POST /api/account/switch-back { password, next }: back to the parent's own
+//                                 account, with the parent's password
 //   GET  /api/account/keys/:kid   the public key that checks a login cookie
 //   POST /api/account/seen        { place }: a game saw this signed-in player
 //                                 (sent by games' auth.js, with the player's cookie)
@@ -302,9 +306,37 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
       if (typeof r.json.google_linked === 'boolean') body.google = r.json.google_linked;
       // The site's admins (Bartenders' is_admin), for games' admin pages.
       body.admin = r.json.is_admin === true;
+      // A child account (made by a parent; nobody signs in to it), and the
+      // parent playing as it, to switch back.
+      body.childAccount = r.json.managed === true;
+      if (r.json.parent && typeof r.json.parent.name === 'string') {
+        body.parent = { name: r.json.parent.name, hasPassword: r.json.parent.has_password !== false };
+      }
       return send(200, body);
     }
     if (r.status === 401 || r.status === 404) return send(200, { signedIn: false });
+    return send(502, { error: UNAVAILABLE });
+  }
+
+  // A parent switching to one of their child accounts, and back: Bartenders
+  // answers with the new login cookie, passed back as signing in's is.
+  async function switchAccount(req, send, back) {
+    const cookie = loginCookieValue(req);
+    if (!cookie) return send(401, { error: SIGN_IN_AGAIN });
+    const body = await readJson(req);
+    if (!body) return send(400, { error: 'Something went wrong. Please try again.' });
+    const next = safeNext(body.next, cookieDomain);
+    const r = back
+      ? await upstream('/v1/family/switch-back', { method: 'POST', body: { password: typeof body.password === 'string' ? body.password : '' }, cookie })
+      : await upstream('/v1/family/switch', { method: 'POST', body: { id: String(body.id || '') }, cookie });
+    if (r.status === 200) {
+      return send(200, { ok: true, name: r.json && r.json.username, next }, { 'Set-Cookie': withLegacyCleared(r.setCookies) });
+    }
+    if (r.status === 401) return send(401, { error: SIGN_IN_AGAIN });
+    // Bartenders' reasons here are written for players.
+    if (r.status === 400 && r.json && typeof r.json.error === 'string') {
+      return send(400, { error: r.json.error, ...(r.json.google ? { google: true } : {}) });
+    }
     return send(502, { error: UNAVAILABLE });
   }
 
@@ -429,6 +461,8 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     else if (p === '/api/account/me' && req.method === 'GET') work = me(req, url, send);
     else if (p === '/api/account/email' && req.method === 'POST') work = changeEmail(req, send);
     else if (p === '/api/account/password' && req.method === 'POST') work = changePassword(req, send);
+    else if (p === '/api/account/switch' && req.method === 'POST') work = switchAccount(req, send, false);
+    else if (p === '/api/account/switch-back' && req.method === 'POST') work = switchAccount(req, send, true);
     else if (p === '/api/account/seen' && req.method === 'POST') work = seen(req, send);
     else if (p === '/api/account/guest-seen' && req.method === 'POST') work = guestSeen(req, send);
     else if (p.startsWith('/api/account/keys/') && req.method === 'GET') work = key(p.slice('/api/account/keys/'.length), send);

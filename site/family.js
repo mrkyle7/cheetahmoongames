@@ -17,6 +17,9 @@
 //   POST /api/family/unask     { email }: stop asking
 //   POST /api/family/answer    { parent, allow }: a child's answer
 //   POST /api/family/remove    { id }: undo a link, as the parent or the child
+//   POST /api/family/child     { name }: make a child account (no email or
+//                              password; the parent switches to it, through
+//                              /api/account/switch, to let them play)
 //   GET  /api/family/children  your children, for games ({ children: [{ id, name }] }):
 //                              games' auth.js asks this with the player's cookie
 
@@ -27,6 +30,7 @@ const ROUTES = {
   'POST /api/family/unask': '/v1/family/unask',
   'POST /api/family/answer': '/v1/family/answer',
   'POST /api/family/remove': '/v1/family/remove',
+  'POST /api/family/child': '/v1/family/child',
 };
 const UNAVAILABLE = "That didn't work. Please try again in a minute.";
 

@@ -186,6 +186,9 @@
             fetch('/api/account/me').then((r) => r.json()).then((me) => {
                 if (me.error) throw new Error(me.error);
                 if (!me.signedIn) return toSignIn();
+                // A child account has no email or password to change: its
+                // family page is where a grown-up switches back.
+                if (me.childAccount) return location.replace('/family');
                 $('name').textContent = me.name;
                 showEmail(me.email);
                 $('googleLinked').hidden = !me.google;

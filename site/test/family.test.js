@@ -60,6 +60,7 @@ test("family requests go to Bartenders, with the player's cookie", async () => {
     await ask('POST', '/api/family/answer', { cookie: 'mum', body: { parent: 'u9', allow: true } });
     await ask('POST', '/api/family/unask', { cookie: 'mum', body: { email: 'zed@example.com' } });
     await ask('POST', '/api/family/remove', { cookie: 'mum', body: { id: 'u2' } });
+    await ask('POST', '/api/family/child', { cookie: 'mum', body: { name: 'Kit' } });
   });
   assert.deepStrictEqual(b.calls.map((c) => [c.key, c.cookie]), [
     ['GET /v1/family', 'mum'],
@@ -68,6 +69,7 @@ test("family requests go to Bartenders, with the player's cookie", async () => {
     ['POST /v1/family/answer', 'mum'],
     ['POST /v1/family/unask', 'mum'],
     ['POST /v1/family/remove', 'mum'],
+    ['POST /v1/family/child', 'mum'],
   ]);
   assert.deepStrictEqual(b.calls[3].body, { parent: 'u9', allow: true });
 });

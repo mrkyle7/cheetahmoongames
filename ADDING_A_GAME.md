@@ -245,6 +245,8 @@ A game can have pages only the site's admins see (Bartenders' `is_admin` account
 
 Parents see how their children are doing at `https://cheetahmoongames.com/family`. A parent asks for a child by the email on the child's account, and nothing is shared until the child, signed in, says yes there (the home page shows "Family (1 asking)"). Either can undo it. The links are kept in Bartenders, beside the accounts (its `app/family.py`, in Supabase), and the home page passes requests on (`site/family.js`), so every game shares them.
 
+A parent can also **make a child account** there, for a child without an email of their own. It has no email or password, so the child can't sign in to it; the parent presses "Play as" to switch to it (the login cookie becomes the child's), and switches back with their own password. To a game, a child account is just a signed-in player: `auth.player(req)` gives the child's `id` and name, so keep their results against that `id` as for anyone else, and they show on the parent's family page like any child's.
+
 A game that has something to show parents:
 
 - **Answers `GET /api/family`** with what it knows about the signed-in player's children:

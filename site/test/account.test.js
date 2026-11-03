@@ -185,7 +185,7 @@ test('me reports the signed-in player, passing only the login cookie on', async 
     const res = await req('GET', '/api/account/me?next=https%3A%2F%2Fevil.example%2F', {
       headers: { cookie: 'theme=dark; userjwt=tok' },
     });
-    assert.deepStrictEqual(res.json, { signedIn: true, name: 'Ann', id: 'u1', next: '/', email: 'ann@example.com', admin: false });
+    assert.deepStrictEqual(res.json, { signedIn: true, name: 'Ann', id: 'u1', next: '/', email: 'ann@example.com', admin: false, childAccount: false });
     assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=tok');
   });
 });
@@ -591,7 +591,7 @@ test('who is signed in says whether the account has a password and a linked Goog
   await withServer(ENV, bartenders, async (req) => {
     const res = await req('GET', '/api/account/me', { headers: { Cookie: 'userjwt=tok' } });
     assert.deepStrictEqual(res.json, {
-      signedIn: true, name: 'Ada', id: 'u1', next: '/', email: 'ada@example.com', hasPassword: false, google: true, admin: false,
+      signedIn: true, name: 'Ada', id: 'u1', next: '/', email: 'ada@example.com', hasPassword: false, google: true, admin: false, childAccount: false,
     });
   });
 });
@@ -658,6 +658,43 @@ test('a guest report needs a token, and one Bartenders refuses is a 401', async 
     const res = await req('POST', '/api/account/guest-seen', {
       headers: { Authorization: 'Bearer eyJhbGciOiJSUzI1NiJ9.e30.c2lnbmF0dXJl' }, body: { name: 'Bob' },
     });
+    assert.strictEqual(res.status, 401);
+  });
+});
+
+test('a parent switches to their child account and back, and the cookie comes through', async () => {
+  const childCookie = 'userjwt=kid; Domain=cheetahmoongames.com; HttpOnly; Path=/; SameSite=strict';
+  const bartenders = fakeBartenders({
+    'POST /v1/family/switch': { body: { username: 'Kit', id: 'k1' }, cookies: [childCookie] },
+    'POST /v1/family/switch-back': { body: { username: 'Mum', id: 'm1' }, cookies: [SHARED_COOKIE] },
+    'GET /userDetails': { body: { username: 'Kit', id: 'k1', managed: true, parent: { id: 'm1', name: 'Mum', has_password: true } } },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    let res = await req('POST', '/api/account/switch', { headers: { Cookie: 'userjwt=mum' }, body: { id: 'k1', next: '/' } });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.name, 'Kit');
+    assert.ok(res.headers['set-cookie'].includes(childCookie));
+    assert.deepStrictEqual(bartenders.calls[0].body, { id: 'k1' });
+    assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=mum');
+    res = await req('GET', '/api/account/me', { headers: { Cookie: 'userjwt=kid' } });
+    assert.strictEqual(res.json.childAccount, true);
+    assert.deepStrictEqual(res.json.parent, { name: 'Mum', hasPassword: true });
+    res = await req('POST', '/api/account/switch-back', { headers: { Cookie: 'userjwt=kid' }, body: { password: 'Password1' } });
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.headers['set-cookie'].includes(SHARED_COOKIE));
+    assert.deepStrictEqual(bartenders.calls.at(-1).body, { password: 'Password1' });
+  });
+});
+
+test("switching back with the wrong password says so, and needs a cookie", async () => {
+  const bartenders = fakeBartenders({
+    'POST /v1/family/switch-back': { status: 400, body: { error: "That isn't your password." } },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    let res = await req('POST', '/api/account/switch-back', { headers: { Cookie: 'userjwt=kid' }, body: { password: 'nope' } });
+    assert.deepStrictEqual([res.status, res.json.error], [400, "That isn't your password."]);
+    assert.strictEqual(res.headers['set-cookie'], undefined);
+    res = await req('POST', '/api/account/switch-back', { body: { password: 'nope' } });
     assert.strictEqual(res.status, 401);
   });
 });
