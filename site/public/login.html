@@ -91,6 +91,7 @@
         .signed-in p { margin: 0 0 18px; }
         .signed-in .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
         .signed-in .primary { text-decoration: none; display: inline-block; }
+        #playingAs { margin-bottom: 22px; }
 
         .google { display: grid; gap: 18px; margin-bottom: 18px; }
         .google-button { min-height: 44px; display: flex; justify-content: center; }
@@ -121,6 +122,16 @@
                 <div class="row">
                     <a class="primary" id="continue" href="/">Continue</a>
                     <button class="link" type="button" id="signOut">Sign out</button>
+                </div>
+            </div>
+
+            <!-- A parent playing as their child account signs in again to
+                 switch back: every way of signing in is offered. -->
+            <div class="signed-in" id="playingAs" hidden>
+                <p>You're playing as <strong id="playingAsName"></strong>. <span id="playingAsParent"></span> signs in again below to switch back.</p>
+                <div class="row">
+                    <a class="primary" id="playingAsContinue" href="/">Keep playing</a>
+                    <button class="link" type="button" id="playingAsSignOut">Sign out</button>
                 </div>
             </div>
 
@@ -432,12 +443,26 @@
                 setMode('login', true);
             });
 
+            $('playingAsSignOut').addEventListener('click', async () => {
+                await fetch('/api/account/logout', { method: 'POST' }).catch(() => {});
+                $('playingAs').hidden = true;
+                setMode('login', true);
+            });
+
             const startMode = TITLES[params.get('mode')] ? params.get('mode') : 'login';
             setMode(startMode, false);
 
             // Already signed in: offer to carry on instead.
             fetch('/api/account/me?next=' + encodeURIComponent(next)).then((r) => r.json()).then((me) => {
                 if (!me.signedIn) return;
+                if (me.parent) {
+                    $('playingAsName').textContent = me.name;
+                    $('playingAsParent').textContent = me.parent.name;
+                    $('playingAsContinue').href = me.next || '/';
+                    $('playingAs').hidden = false;
+                    $('title').textContent = 'Switch back';
+                    return;
+                }
                 signedIn = true;
                 showGoogle();
                 $('signedInName').textContent = me.name;

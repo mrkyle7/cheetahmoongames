@@ -537,6 +537,16 @@
                 const family = document.createElement('a');
                 family.href = '/family';
                 family.textContent = 'Family';
+                // A parent playing as their child account: a way back, not the
+                // account page (a child account has no password or email).
+                if (me.childAccount) {
+                    who.replaceChildren('Playing as ', name);
+                    const back = document.createElement('a');
+                    back.href = '/family';
+                    back.textContent = me.parent ? `Switch back to ${me.parent.name}` : 'Switch back';
+                    bar.append(who, back);
+                    return;
+                }
                 bar.append(who, account, family, out);
                 // Someone asking to see their games: say so, so they can answer.
                 fetch('/api/family').then((r) => (r.ok ? r.json() : null)).then((f) => {

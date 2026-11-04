@@ -121,6 +121,22 @@
                 <p class="sub">Signed in as <strong id="name"></strong>. Parents can see how their children are doing in the games, once each child says yes.</p>
             </section>
 
+            <!-- A child account (made by a parent): switching back needs the
+                 parent's password, so the child can't do it alone. -->
+            <section class="panel" id="childPanel" aria-labelledby="childTitle" hidden>
+                <h2 id="childTitle">This is <span id="childName"></span>'s account</h2>
+                <p class="lead" id="childLead">Grown-ups made it for playing the games. Ask a grown-up to switch back to theirs.</p>
+                <form id="backForm" novalidate hidden>
+                    <label><span id="backLabel">Grown-up's password</span>
+                        <input id="backPassword" name="password" type="password" autocomplete="current-password" required maxlength="128">
+                    </label>
+                    <p class="msg" id="backMsg" role="status" aria-live="polite"></p>
+                    <button class="primary" type="submit">Switch back</button>
+                </form>
+                <p id="backGoogle" hidden><a class="primary" href="/login?next=%2Ffamily">Sign in again with Google</a></p>
+                <p><button class="quiet" type="button" id="childSignOut">Sign out</button></p>
+            </section>
+
             <section class="panel" id="requestsPanel" aria-labelledby="requestsTitle" hidden>
                 <h2 id="requestsTitle">Asking to see your games</h2>
                 <p class="lead">They'd see how you're doing in the games, like the words you've spelled. Say yes only if they're your parent or carer.</p>
@@ -129,7 +145,20 @@
 
             <div id="children"></div>
 
-            <section class="panel" aria-labelledby="addTitle">
+            <section class="panel" id="makePanel" aria-labelledby="makeTitle">
+                <h2 id="makeTitle">Make a child account</h2>
+                <p class="lead">For a child without an email of their own. They can't sign in to it themselves: you switch to it here to let them play, and back again with your password. Their games are kept on their account, and you see how they're doing here.</p>
+                <form id="makeForm" novalidate>
+                    <label>Their name in the games
+                        <span class="hint">3 to 50 letters, numbers or spaces. Everyone playing sees it.</span>
+                        <input id="kidName" name="name" type="text" autocomplete="off" required minlength="3" maxlength="50">
+                    </label>
+                    <p class="msg" id="makeMsg" role="status" aria-live="polite"></p>
+                    <button class="primary" type="submit">Make it</button>
+                </form>
+            </section>
+
+            <section class="panel" id="addPanel" aria-labelledby="addTitle">
                 <h2 id="addTitle">Add a child</h2>
                 <p class="lead">Enter the email on your child's Cheetah Moon account. Next time they're signed in here, they'll be asked to say yes.</p>
                 <form id="askForm" novalidate>
@@ -153,7 +182,7 @@
 
             <p class="foot">
                 <a class="link" href="/">&larr; All games</a>
-                <a class="link" href="/profile">Your account</a>
+                <a class="link" href="/profile" id="profileLink">Your account</a>
             </p>
         </div>
     </main>
@@ -215,12 +244,38 @@
             async function showChild(child) {
                 const panel = el('section', undefined, 'panel child');
                 panel.append(el('h2', child.name));
+                // A child account they made: switch to it to let the child play.
+                if (child.managed) {
+                    const play = el('p');
+                    play.style.margin = '6px 0 12px';
+                    const b = el('button', '▶ Play as ' + child.name, 'primary');
+                    b.type = 'button';
+                    b.addEventListener('click', async () => {
+                        b.disabled = true;
+                        try {
+                            const r = await fetch('/api/account/switch', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: child.id }),
+                            });
+                            const data = await r.json().catch(() => ({}));
+                            if (!r.ok) throw new Error(data.error || GENERIC);
+                            location.href = '/';
+                        } catch (e) { say(e.message, 'error'); b.disabled = false; }
+                    });
+                    play.append(b);
+                    panel.append(play);
+                }
+                // Their own spelling words, for Spell Battle's spelling games.
+                const words = el('a', '📝 Set ' + child.name + "'s spelling words", 'quiet');
+                words.href = 'https://spell-battle.cheetahmoongames.com/lists';
+                words.style.display = 'inline-block';
+                words.style.margin = '0 0 10px';
+                panel.append(words);
                 const holder = el('div');
                 holder.append(el('p', 'Loading their games…', 'empty'));
                 panel.append(holder);
                 const undo = el('p');
                 undo.style.margin = '14px 0 0';
-                undo.append(button('Stop seeing ' + child.name + "'s games", 'quiet', () => api('/api/family/remove', { id: child.id })));
+                if (!child.managed) undo.append(button('Stop seeing ' + child.name + "'s games", 'quiet', () => api('/api/family/remove', { id: child.id })));
                 panel.append(undo);
                 $('children').append(panel);
                 const games = await Promise.all(fromGames);
@@ -263,10 +318,67 @@
                 $('parents').replaceChildren(...v.parents.map((p) => personRow(p.name, [
                     button('Stop sharing', 'quiet', () => api('/api/family/remove', { id: p.id })),
                 ])));
-                $('parentsPanel').hidden = !v.parents.length;
+                $('parentsPanel').hidden = !v.parents.length || v.childAccount;
+                // A child account: no making or asking, and a way back.
+                $('childPanel').hidden = !v.childAccount;
+                $('makePanel').hidden = Boolean(v.childAccount);
+                $('addPanel').hidden = Boolean(v.childAccount);
+                $('profileLink').hidden = Boolean(v.childAccount);
+                $('childName').textContent = v.me.name;
                 $('loading').hidden = true;
                 $('family').hidden = false;
             }
+
+            // Who's playing as the child account, if a parent is: they switch back.
+            fetch('/api/account/me').then((r) => r.json()).then((me) => {
+                if (!me || !me.parent) return;
+                $('childLead').textContent = `${me.parent.name} is playing as this account. To switch back, ${me.parent.name} signs in again.`;
+                // Google, if they sign in with it (an older account may have a
+                // password too, which they may not know); else their password.
+                if (me.parent.hasPassword) {
+                    $('backLabel').textContent = `${me.parent.name}'s password`;
+                    $('backForm').hidden = false;
+                }
+                if (me.parent.google || !me.parent.hasPassword) $('backGoogle').hidden = false;
+            }).catch(() => {});
+
+            $('childSignOut').addEventListener('click', async () => {
+                await fetch('/api/account/logout', { method: 'POST' }).catch(() => {});
+                location.href = '/login?next=%2Ffamily';
+            });
+
+            $('backForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const m = $('backMsg');
+                const password = $('backPassword').value;
+                if (!password) { m.className = 'msg error'; m.textContent = 'Please enter the password.'; return; }
+                const r = await fetch('/api/account/switch-back', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+                }).catch(() => null);
+                const data = r ? await r.json().catch(() => ({})) : {};
+                if (r && r.ok) { location.href = '/family'; return; }
+                if (data.google) { $('backForm').hidden = true; $('backGoogle').hidden = false; }
+                m.className = 'msg error';
+                m.textContent = data.error || GENERIC;
+            });
+
+            $('makeForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const m = $('makeMsg');
+                const name = $('kidName').value.trim();
+                if (name.length < 3) { m.className = 'msg error'; m.textContent = 'Please enter a name of 3 letters or more.'; return; }
+                try {
+                    const v = await api('/api/family/child', { name });
+                    if (!v) return;
+                    e.target.reset();
+                    show(v);
+                    m.className = 'msg done';
+                    m.textContent = `Made ${name}'s account! Press "Play as ${name}" to let them play.`;
+                } catch (err) {
+                    m.className = 'msg error';
+                    m.textContent = err.message;
+                }
+            });
 
             api('/api/family').then((v) => { if (v) show(v); }).catch(() => {
                 $('loading').hidden = true;
