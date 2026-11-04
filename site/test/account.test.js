@@ -667,7 +667,7 @@ test('a parent switches to their child account and back, and the cookie comes th
   const bartenders = fakeBartenders({
     'POST /v1/family/switch': { body: { username: 'Kit', id: 'k1' }, cookies: [childCookie] },
     'POST /v1/family/switch-back': { body: { username: 'Mum', id: 'm1' }, cookies: [SHARED_COOKIE] },
-    'GET /userDetails': { body: { username: 'Kit', id: 'k1', managed: true, parent: { id: 'm1', name: 'Mum', has_password: true } } },
+    'GET /userDetails': { body: { username: 'Kit', id: 'k1', managed: true, parent: { id: 'm1', name: 'Mum', has_password: true, google: true } } },
   });
   await withServer(ENV, bartenders, async (req) => {
     let res = await req('POST', '/api/account/switch', { headers: { Cookie: 'userjwt=mum' }, body: { id: 'k1', next: '/' } });
@@ -678,7 +678,7 @@ test('a parent switches to their child account and back, and the cookie comes th
     assert.strictEqual(bartenders.calls[0].headers.Cookie, 'userjwt=mum');
     res = await req('GET', '/api/account/me', { headers: { Cookie: 'userjwt=kid' } });
     assert.strictEqual(res.json.childAccount, true);
-    assert.deepStrictEqual(res.json.parent, { name: 'Mum', hasPassword: true });
+    assert.deepStrictEqual(res.json.parent, { name: 'Mum', hasPassword: true, google: true });
     res = await req('POST', '/api/account/switch-back', { headers: { Cookie: 'userjwt=kid' }, body: { password: 'Password1' } });
     assert.strictEqual(res.status, 200);
     assert.ok(res.headers['set-cookie'].includes(SHARED_COOKIE));

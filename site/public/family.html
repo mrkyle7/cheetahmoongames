@@ -134,6 +134,7 @@
                     <button class="primary" type="submit">Switch back</button>
                 </form>
                 <p id="backGoogle" hidden><a class="primary" href="/login?next=%2Ffamily">Sign in again with Google</a></p>
+                <p><button class="quiet" type="button" id="childSignOut">Sign out</button></p>
             </section>
 
             <section class="panel" id="requestsPanel" aria-labelledby="requestsTitle" hidden>
@@ -332,13 +333,19 @@
             fetch('/api/account/me').then((r) => r.json()).then((me) => {
                 if (!me || !me.parent) return;
                 $('childLead').textContent = `${me.parent.name} is playing as this account. To switch back, ${me.parent.name} signs in again.`;
+                // Google, if they sign in with it (an older account may have a
+                // password too, which they may not know); else their password.
                 if (me.parent.hasPassword) {
                     $('backLabel').textContent = `${me.parent.name}'s password`;
                     $('backForm').hidden = false;
-                } else {
-                    $('backGoogle').hidden = false;
                 }
+                if (me.parent.google || !me.parent.hasPassword) $('backGoogle').hidden = false;
             }).catch(() => {});
+
+            $('childSignOut').addEventListener('click', async () => {
+                await fetch('/api/account/logout', { method: 'POST' }).catch(() => {});
+                location.href = '/login?next=%2Ffamily';
+            });
 
             $('backForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
