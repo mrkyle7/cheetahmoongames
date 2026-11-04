@@ -698,3 +698,29 @@ test("switching back with the wrong password says so, and needs a cookie", async
     assert.strictEqual(res.status, 401);
   });
 });
+
+test("games' pages can ask who's playing and switch to a child account, from their own subdomains only", async () => {
+  const bartenders = fakeBartenders({
+    'GET /userDetails': { body: { username: 'Mum', id: 'm1' } },
+    'POST /v1/family/switch': { body: { username: 'Kit', id: 'k1' }, cookies: [SHARED_COOKIE] },
+  });
+  await withServer(ENV, bartenders, async (req) => {
+    const game = { Origin: 'https://spell-battle.cheetahmoongames.com', Cookie: 'userjwt=mum' };
+    let res = await req('OPTIONS', '/api/account/switch', { headers: { ...game, 'Access-Control-Request-Method': 'POST' } });
+    assert.strictEqual(res.status, 204);
+    assert.strictEqual(res.headers['access-control-allow-origin'], 'https://spell-battle.cheetahmoongames.com');
+    assert.strictEqual(res.headers['access-control-allow-credentials'], 'true');
+    res = await req('POST', '/api/account/switch', { headers: game, body: { id: 'k1' } });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers['access-control-allow-origin'], 'https://spell-battle.cheetahmoongames.com');
+    res = await req('GET', '/api/account/me', { headers: game });
+    assert.strictEqual(res.headers['access-control-allow-origin'], 'https://spell-battle.cheetahmoongames.com');
+    // Not another website, nor a route games don't need.
+    res = await req('GET', '/api/account/me', { headers: { Origin: 'https://evil.example', Cookie: 'userjwt=mum' } });
+    assert.strictEqual(res.headers['access-control-allow-origin'], undefined);
+    res = await req('GET', '/api/account/me', { headers: { Origin: 'http://spell-battle.cheetahmoongames.com', Cookie: 'userjwt=mum' } });
+    assert.strictEqual(res.headers['access-control-allow-origin'], undefined);
+    res = await req('POST', '/api/account/password', { headers: game, body: {} });
+    assert.strictEqual(res.headers['access-control-allow-origin'], undefined);
+  });
+});

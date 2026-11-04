@@ -106,6 +106,22 @@ function serveFile(req, res, filePath, extraHeaders) {
   });
 }
 
+// The routes games' pages call from their own subdomains (see above).
+const GAME_ROUTES = new Set(['/api/account/me', '/api/account/switch', '/api/account/switch-back', '/api/family']);
+
+// The origin of one of the site's games (https://<game>.<cookie domain>), or
+// null. Locally (no cookie domain), games on localhost.
+function gameOrigin(origin, cookieDomain) {
+  if (typeof origin !== 'string') return null;
+  let url;
+  try { url = new URL(origin); } catch { return null; }
+  const host = url.hostname.toLowerCase();
+  if (cookieDomain) {
+    return url.protocol === 'https:' && host.endsWith('.' + cookieDomain) ? url.origin : null;
+  }
+  return host === 'localhost' || host === '127.0.0.1' ? url.origin : null;
+}
+
 function createServer(env = process.env, { fetchImpl } = {}) {
   const { bartendersUrl, cookieDomain, googleClientId } = config(env);
   const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl });
@@ -161,6 +177,25 @@ function createServer(env = process.env, { fetchImpl } = {}) {
         'Cache-Control': NO_CACHE,
         'Referrer-Policy': 'no-referrer',
       });
+    }
+
+    // Games ask who's playing, and switch a parent to their child account and
+    // back, from their own subdomains: those routes answer them (with the
+    // login cookie, which is the whole site's), and nobody else.
+    if (GAME_ROUTES.has(p)) {
+      const origin = gameOrigin(req.headers.origin, cookieDomain);
+      if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+        if (req.method === 'OPTIONS') {
+          return send(res, 204, {
+            'Access-Control-Allow-Methods': 'GET, POST',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '600',
+          });
+        }
+      }
     }
 
     if (accounts.handle(req, res, url, send)) return;

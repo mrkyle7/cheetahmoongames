@@ -263,6 +263,12 @@
                     play.append(b);
                     panel.append(play);
                 }
+                // Their own spelling words, for Spell Battle's spelling games.
+                const words = el('a', '📝 Set ' + child.name + "'s spelling words", 'quiet');
+                words.href = 'https://spell-battle.cheetahmoongames.com/lists';
+                words.style.display = 'inline-block';
+                words.style.margin = '0 0 10px';
+                panel.append(words);
                 const holder = el('div');
                 holder.append(el('p', 'Loading their games…', 'empty'));
                 panel.append(holder);
