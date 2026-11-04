@@ -156,6 +156,9 @@ locals {
       max_instances = 1
       timeout       = "3600s"
       concurrency   = 1000
+
+      # Games are saved here turn by turn (secret-mermaids.tf).
+      env = { GAMES_BUCKET = "${var.project_name}-secret-mermaids" }
     }
 
     the-cars = {
