@@ -310,7 +310,7 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
       // parent playing as it, to switch back.
       body.childAccount = r.json.managed === true;
       if (r.json.parent && typeof r.json.parent.name === 'string') {
-        body.parent = { name: r.json.parent.name, hasPassword: r.json.parent.has_password !== false };
+        body.parent = { name: r.json.parent.name, hasPassword: r.json.parent.has_password !== false, google: r.json.parent.google === true };
       }
       return send(200, body);
     }

@@ -107,7 +107,7 @@ function serveFile(req, res, filePath, extraHeaders) {
 }
 
 // The routes games' pages call from their own subdomains (see above).
-const GAME_ROUTES = new Set(['/api/account/me', '/api/account/switch', '/api/account/switch-back', '/api/family']);
+const GAME_ROUTES = new Set(['/api/account/me', '/api/account/switch', '/api/account/switch-back', '/api/account/logout', '/api/family']);
 
 // The origin of one of the site's games (https://<game>.<cookie domain>), or
 // null. Locally (no cookie domain), games on localhost.
