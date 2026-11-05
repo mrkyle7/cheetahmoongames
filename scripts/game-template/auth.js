@@ -10,6 +10,14 @@
 //   <ACCOUNTS_URL>/api/account/keys/<kid>
 // and never trusts a cookie it can't check.
 //
+// With KEYS_SUPABASE_URL and KEYS_SUPABASE_KEY set (the accounts database's
+// URL and its publishable key, which isn't secret), it reads the key straight
+// from the database's public_keys table instead, the one table anyone may
+// read. That answers even while the accounts service is asleep (it scales to
+// zero, and waking it can take longer than a player waits). If the database
+// doesn't have the key or doesn't answer, it asks the accounts service as
+// above.
+//
 // It also tells the accounts service when it sees a signed-in player, so the
 // site's owner hears when someone comes back (Bartenders' app/activity.py):
 // at most every 5 minutes per player, without holding up the request, by
@@ -83,6 +91,8 @@ function createAuth({
   fetchChildren, // (token) => Promise<[{ id, name }]>; tests pass their own
   fetchAdmin, // (token) => Promise<boolean>; tests pass their own
   metadataUrl = METADATA_IDENTITY, // tests point it at a stand-in
+  keysDbUrl = process.env.KEYS_SUPABASE_URL || '', // the accounts database
+  keysDbKey = process.env.KEYS_SUPABASE_KEY || '', // its publishable key
 } = {}) {
   const base = accountsUrl.replace(/\/+$/, '');
   const keys = new Map(); // kid -> { key: Promise<KeyObject|null>, at }
@@ -96,7 +106,33 @@ function createAuth({
     const body = await r.json();
     return typeof body.pem === 'string' ? body.pem : null;
   };
-  const loadPem = fetchKey || defaultFetchKey;
+  // The key from the accounts database's public_keys table: its PEM, null if
+  // it hasn't got it, or an error if it couldn't be asked.
+  const dbBase = keysDbUrl.replace(/\/+$/, '');
+  const fetchKeyFromDb = async (kid) => {
+    const q = `select=public_key&valid=eq.true&kid=eq.${encodeURIComponent(kid)}`;
+    const r = await fetch(`${dbBase}/rest/v1/public_keys?${q}`, {
+      headers: { apikey: keysDbKey, Accept: 'application/json' },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!r.ok) throw new Error(`accounts database answered ${r.status}`);
+    const rows = await r.json();
+    const hex = Array.isArray(rows) && rows.length === 1 ? rows[0].public_key : null;
+    // A bytea column comes back as "\x" and hex.
+    if (typeof hex !== 'string' || !/^\\x[0-9a-fA-F]+$/.test(hex)) return null;
+    const pem = Buffer.from(hex.slice(2), 'hex').toString('utf8');
+    return pem.startsWith('-----BEGIN PUBLIC KEY-----') ? pem : null;
+  };
+  const fetchKeyFromDbThenService = async (kid) => {
+    try {
+      const pem = await fetchKeyFromDb(kid);
+      if (pem) return pem;
+    } catch (err) {
+      console.error(`auth: couldn't read signing key ${kid} from the accounts database: ${err.message}`);
+    }
+    return defaultFetchKey(kid);
+  };
+  const loadPem = fetchKey || (dbBase && keysDbKey ? fetchKeyFromDbThenService : defaultFetchKey);
 
   function keyFor(kid) {
     const cached = keys.get(kid);

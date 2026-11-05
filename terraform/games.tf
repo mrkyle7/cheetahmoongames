@@ -8,6 +8,14 @@
 # ---------------------------------------------------------------------------
 
 locals {
+  # Lets a game's auth.js read login keys from Bartenders' database, so a
+  # sleeping Bartenders can't make signed-in players look signed out (see
+  # "Players and signing in" in ADDING_A_GAME.md). Empty until both are set.
+  keys_from_supabase = var.accounts_supabase_url != "" && var.accounts_supabase_publishable_key != "" ? {
+    KEYS_SUPABASE_URL = var.accounts_supabase_url
+    KEYS_SUPABASE_KEY = var.accounts_supabase_publishable_key
+  } : {}
+
   games = {
     boxer = {
       name        = "the-boxer"
@@ -127,8 +135,9 @@ locals {
       concurrency      = 1000
       max_instances    = 1
 
-      # Players' records: the spells they've learned (spell-battle.tf).
-      env = { PLAYERS_BUCKET = "${var.project_name}-spell-battle" }
+      # Players' records: the spells they've learned (spell-battle.tf). Login
+      # keys from Bartenders' database (the first game to try it).
+      env = merge({ PLAYERS_BUCKET = "${var.project_name}-spell-battle" }, local.keys_from_supabase)
     }
 
     fish-tales = {
