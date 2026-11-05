@@ -273,3 +273,67 @@ test("whether a player is one of the site's admins, asked with their own cookie,
   assert.strictEqual(await a.isAdmin(req(undefined)), false);
   assert.strictEqual(await auth({ fetchAdmin: async () => { throw new Error('down'); } }).isAdmin(req(`userjwt=${tok}`)), false, "can't ask: not an admin");
 });
+
+// With the accounts database set, the key is read from its public_keys table
+// (as Supabase's REST API returns a bytea column: "\x" and hex), so signing in
+// works while the accounts service is asleep.
+async function withFetch(handler, fn) {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), headers: (init && init.headers) || {} });
+    return handler(String(url));
+  };
+  try {
+    return await fn(calls);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+const DB = 'https://abc.supabase.co';
+const dbAuth = () => createAuth({ accountsUrl: 'https://cheetahmoongames.com', keysDbUrl: `${DB}/`, keysDbKey: 'sb_publishable_test' });
+const dbRow = (pem) => new Response(JSON.stringify([{ public_key: `\\x${Buffer.from(pem).toString('hex')}` }]));
+const keyFromService = () => new Response(JSON.stringify({ kid: KID, alg: 'RS256', pem: PEM }));
+
+test("the signing key comes from the accounts database's public keys, with its publishable key", async () => {
+  await withFetch((url) => (url.startsWith(DB) ? dbRow(PEM) : new Response('', { status: 500 })), async (calls) => {
+    const a = dbAuth();
+    assert.deepStrictEqual(await a.player(req(`userjwt=${token()}`)), { id: 'user-1', name: 'Ann Smith' });
+    assert.strictEqual(calls.length, 1, 'the accounts service is not asked');
+    assert.strictEqual(calls[0].url, `${DB}/rest/v1/public_keys?select=public_key&valid=eq.true&kid=eq.${KID}`);
+    assert.strictEqual(calls[0].headers.apikey, 'sb_publishable_test');
+    await a.player(req(`userjwt=${token()}`));
+    assert.strictEqual(calls.length, 1, 'and it is kept');
+  });
+});
+
+test("if the database hasn't the key, or doesn't answer, the accounts service is asked", async () => {
+  for (const db of [
+    () => new Response('[]'),
+    () => new Response('{"message":"down"}', { status: 503 }),
+    () => { throw new Error('ECONNREFUSED'); },
+    () => new Response(JSON.stringify([{ public_key: 'not hex' }])),
+  ]) {
+    await withFetch((url) => (url.startsWith(DB) ? db() : keyFromService()), async (calls) => {
+      const a = dbAuth();
+      assert.deepStrictEqual(await a.player(req(`userjwt=${token()}`)), { id: 'user-1', name: 'Ann Smith' });
+      assert.strictEqual(calls[1].url, `https://cheetahmoongames.com/api/account/keys/${KID}`);
+    });
+  }
+});
+
+test('a key from the database still has to have signed the token', async () => {
+  const other = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey.export({ type: 'spki', format: 'pem' });
+  await withFetch((url) => (url.startsWith(DB) ? dbRow(other) : keyFromService()), async () => {
+    assert.strictEqual(await dbAuth().player(req(`userjwt=${token()}`)), null);
+  });
+});
+
+test('without the database settings the accounts service is asked, as before', async () => {
+  await withFetch(() => keyFromService(), async (calls) => {
+    const a = createAuth({ accountsUrl: 'https://cheetahmoongames.com', keysDbUrl: DB, keysDbKey: '' });
+    assert.ok(await a.player(req(`userjwt=${token()}`)));
+    assert.deepStrictEqual(calls.map((c) => c.url), [`https://cheetahmoongames.com/api/account/keys/${KID}`]);
+  });
+});

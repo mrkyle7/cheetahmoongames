@@ -110,6 +110,18 @@ variable "google_client_id" {
   description = "OAuth client ID for \"Sign in with Google\" on the sign-in page (made by hand, see README). Not a secret. Empty turns Google sign-in off."
 }
 
+variable "accounts_supabase_url" {
+  type        = string
+  default     = ""
+  description = "Bartenders' Supabase project URL (https://<ref>.supabase.co), for games to read login keys straight from its public_keys table (KEYS_SUPABASE_URL; see ADDING_A_GAME.md). Empty, or with no publishable key, games ask the accounts service instead."
+}
+
+variable "accounts_supabase_publishable_key" {
+  type        = string
+  default     = ""
+  description = "Bartenders' Supabase publishable key (sb_publishable_...), with accounts_supabase_url. Not a secret: it can only read public_keys (Bartenders' tests check that)."
+}
+
 variable "login_alerts_to" {
   type        = string
   default     = "kyle"
