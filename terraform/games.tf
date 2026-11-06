@@ -28,6 +28,9 @@ locals {
       session_affinity = true
       concurrency      = 1000
       max_instances    = 1
+
+      # Login keys from Bartenders' database (see local.keys_from_supabase).
+      env = local.keys_from_supabase
     }
 
     bezique = {
@@ -47,6 +50,10 @@ locals {
       # mrkyle7/bezique fills these in from its GitHub secrets. The keys that
       # sign its notifications are in that database, made by the server.
       secrets = ["SUPABASE_URL", "SUPABASE_KEY"]
+
+      # Login keys from Bartenders' database (see local.keys_from_supabase).
+      # Its own database is the bezique project above.
+      env = local.keys_from_supabase
     }
 
     catch-the-flag = {
@@ -75,8 +82,9 @@ locals {
       timeout       = "3600s"
       concurrency   = 1000
 
-      # Tables are saved here at the end of every turn (kings-keep.tf).
-      env = { GAMES_BUCKET = "${var.project_name}-kings-keep" }
+      # Tables are saved here at the end of every turn (kings-keep.tf). Login
+      # keys from Bartenders' database.
+      env = merge({ GAMES_BUCKET = "${var.project_name}-kings-keep" }, local.keys_from_supabase)
     }
 
     football-shootout = {
@@ -136,7 +144,7 @@ locals {
       max_instances    = 1
 
       # Players' records: the spells they've learned (spell-battle.tf). Login
-      # keys from Bartenders' database (the first game to try it).
+      # keys from Bartenders' database.
       env = merge({ PLAYERS_BUCKET = "${var.project_name}-spell-battle" }, local.keys_from_supabase)
     }
 
@@ -166,8 +174,9 @@ locals {
       timeout       = "3600s"
       concurrency   = 1000
 
-      # Games are saved here turn by turn (secret-mermaids.tf).
-      env = { GAMES_BUCKET = "${var.project_name}-secret-mermaids" }
+      # Games are saved here turn by turn (secret-mermaids.tf). Login keys
+      # from Bartenders' database.
+      env = merge({ GAMES_BUCKET = "${var.project_name}-secret-mermaids" }, local.keys_from_supabase)
     }
 
     the-cars = {
