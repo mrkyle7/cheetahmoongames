@@ -225,6 +225,17 @@ locals {
       env = local.keys_from_supabase
     }
 
+    # The Shapes runs in the browser and keeps nothing on the server, so
+    # the defaults suit it.
+    the-shapes = {
+      name        = "the-shapes"
+      subdomain   = "shapes"
+      github_repo = "mrkyle7/the-shapes"
+
+      # Login keys from Bartenders' database (see local.keys_from_supabase).
+      env = local.keys_from_supabase
+    }
+
     # Claude's Compaction. It isn't on the home page. It runs in the
     # browser and keeps nothing on the server, so the defaults suit it.
     claude = {
