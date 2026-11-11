@@ -87,6 +87,8 @@
         .spells .art svg { width: 100%; height: 100%; }
         .science .art { background: #0d0b26; }
         .science .art img { width: 100%; height: 100%; object-fit: cover; }
+        .shapes .art { background: #5fc3ff; }
+        .shapes .art svg { width: 100%; height: 100%; }
 
         .body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
         .body h2 { margin: 0 0 6px; font-size: 24px; }
@@ -117,6 +119,7 @@
         .cars .play { background: #b71c1c; }
         .pirates .play { background: #8a4b14; }
         .science .play { background: #0f766e; }
+        .shapes .play { background: #b3261e; }
 
         footer {
             margin-top: 44px; color: var(--muted); font-size: 14px;
@@ -490,6 +493,40 @@
                     <h2>Crazy Science</h2>
                     <p>Guess what happens, then watch the experiment run in a 3D lab: floating and sinking, magnets, gravity, colours, circuits and space. Everyone answers at their own level, from age 5 to grown-up, and every right answer fuels the team's rocket. For 1 to 8 players, live.</p>
                     <span class="play">Play Crazy Science</span>
+                </div>
+            </a>
+
+            <a class="game shapes" href="https://shapes.cheetahmoongames.com/"
+               aria-label="Play The Shapes">
+                <div class="art">
+                    <!-- The game's icon: a triangle, a square and a circle, smiling, under the Cheetah Moon. -->
+                    <svg viewBox="-120 0 752 512" aria-hidden="true">
+                        <rect x="-120" width="752" height="512" fill="#5fc3ff"/>
+                        <circle cx="392" cy="120" r="58" fill="#f3d36b"/>
+                        <circle cx="376" cy="104" r="9" fill="#8a6410"/>
+                        <circle cx="408" cy="128" r="7" fill="#8a6410"/>
+                        <circle cx="384" cy="148" r="8" fill="#8a6410"/>
+                        <g stroke="#22305c" stroke-width="18" stroke-linejoin="round" stroke-linecap="round">
+                            <path d="M212 96l112 190H100z" fill="#ff5a5f"/>
+                            <rect x="96" y="262" width="168" height="168" rx="20" fill="#3d9bff"/>
+                            <circle cx="344" cy="340" r="92" fill="#ffd23f"/>
+                        </g>
+                        <g fill="#22305c">
+                            <circle cx="190" cy="222" r="10"/><circle cx="234" cy="222" r="10"/>
+                            <circle cx="152" cy="332" r="11"/><circle cx="208" cy="332" r="11"/>
+                            <circle cx="312" cy="326" r="12"/><circle cx="376" cy="326" r="12"/>
+                        </g>
+                        <g fill="none" stroke="#22305c" stroke-width="9" stroke-linecap="round">
+                            <path d="M198 244q14 12 28 0"/>
+                            <path d="M162 360q18 16 36 0"/>
+                            <path d="M320 358q24 22 48 0"/>
+                        </g>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>The Shapes</h2>
+                    <p>For 5 year olds. Shapes fly all around you: catch the one the game calls out. Wrong shapes make you bigger, right ones shrink you, and rainbow shapes are magic.</p>
+                    <span class="play">Play The Shapes</span>
                 </div>
             </a>
 
