@@ -209,6 +209,22 @@ locals {
       concurrency   = 1000
     }
 
+    crazy-science = {
+      name        = "crazy-science"
+      subdomain   = "crazy-science"
+      github_repo = "mrkyle7/crazy-science"
+
+      # Like The Boxer: labs are WebSocket connections and rooms live in
+      # memory, so every scientist in a lab must reach one instance.
+      timeout          = "3600s"
+      session_affinity = true
+      concurrency      = 1000
+      max_instances    = 1
+
+      # Login keys from Bartenders' database (see local.keys_from_supabase).
+      env = local.keys_from_supabase
+    }
+
     # Claude's Compaction. It isn't on the home page. It runs in the
     # browser and keeps nothing on the server, so the defaults suit it.
     claude = {
