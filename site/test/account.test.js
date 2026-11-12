@@ -724,3 +724,102 @@ test("games' pages can ask who's playing and switch to a child account, from the
     assert.strictEqual(res.headers['access-control-allow-origin'], undefined);
   });
 });
+
+// --- Who's signed in, checked here (?quick=1) ---------------------------------
+// The home page asks /api/account/me?quick=1: the cookie is checked with the
+// key from Bartenders' database, so a sleeping Bartenders can't hold it up.
+
+const crypto = require('crypto');
+
+const QKID = '6c1f7a52-2a8e-4d1a-9a0c-3f2f5b0e9d11';
+const qkeys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+const QPEM = qkeys.publicKey.export({ type: 'spki', format: 'pem' });
+const QENV = { ...ENV, KEYS_SUPABASE_URL: 'https://abc.supabase.co', KEYS_SUPABASE_KEY: 'sb_publishable_test' };
+
+function qtoken(claims = {}, key = qkeys.privateKey) {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  const body = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ sub: 'Ann Smith', id: 'user-1', exp: now + 3600, kid: QKID, ...claims })}`;
+  return `${body}.${crypto.sign('RSA-SHA256', Buffer.from(body), key).toString('base64url')}`;
+}
+const dbRow = (pem) => ({ body: [{ public_key: `\\x${Buffer.from(pem).toString('hex')}` }] });
+
+test('quick: the cookie is checked with the key from the database, without waiting for Bartenders', async () => {
+  const bartenders = fakeBartenders({ 'GET /rest/v1/public_keys': dbRow(QPEM), 'GET /userDetails': { body: { username: 'Ann Smith' } } });
+  await withServer(QENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me?quick=1', { headers: { Cookie: `userjwt=${qtoken()}` } });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, { signedIn: true, name: 'Ann Smith', id: 'user-1', next: '/', childAccount: false, quick: true });
+    const db = bartenders.calls.find((c) => c.key === 'GET /rest/v1/public_keys');
+    assert.strictEqual(db.headers.apikey, 'sb_publishable_test');
+    assert.ok(!bartenders.calls.some((c) => c.key.startsWith('GET /v1/auth/keys/')), 'Bartenders is not asked for the key');
+    await new Promise((r) => setTimeout(r, 20));
+    const visit = bartenders.calls.find((c) => c.key === 'GET /userDetails');
+    assert.ok(visit, 'Bartenders still hears about the visit');
+    assert.strictEqual(visit.headers['X-Cheetah-Moon-Home'], '1');
+  });
+});
+
+test("quick: a parent playing as their child account says so", async () => {
+  const bartenders = fakeBartenders({ 'GET /rest/v1/public_keys': dbRow(QPEM) });
+  await withServer(QENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me?quick=1', { headers: { Cookie: `userjwt=${qtoken({ parent: 'parent-1' })}` } });
+    assert.strictEqual(res.json.childAccount, true);
+  });
+});
+
+test('quick: forged, expired and missing cookies are signed out', async () => {
+  const other = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+  const bartenders = fakeBartenders({ 'GET /rest/v1/public_keys': dbRow(QPEM) });
+  await withServer(QENV, bartenders, async (req) => {
+    for (const cookie of [`userjwt=${qtoken({}, other)}`, `userjwt=${qtoken({ exp: 1 })}`, 'userjwt=not.a.token', '']) {
+      const res = await req('GET', '/api/account/me?quick=1', { headers: cookie ? { Cookie: cookie } : {} });
+      assert.deepStrictEqual(res.json, { signedIn: false }, cookie);
+    }
+  });
+});
+
+test("quick: if the database hasn't the key, Bartenders is asked for it", async () => {
+  const bartenders = fakeBartenders({
+    'GET /rest/v1/public_keys': { body: [] },
+    [`GET /v1/auth/keys/${QKID}`]: { body: { kid: QKID, alg: 'RS256', pem: QPEM } },
+  });
+  await withServer(QENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me?quick=1', { headers: { Cookie: `userjwt=${qtoken()}` } });
+    assert.strictEqual(res.json.signedIn, true);
+  });
+});
+
+test("quick: if the key can't be had at all, Bartenders answers as without quick", async () => {
+  const bartenders = fakeBartenders({
+    'GET /rest/v1/public_keys': { status: 503, body: {} },
+    [`GET /v1/auth/keys/${QKID}`]: { status: 502, body: {} },
+    'GET /userDetails': { body: { username: 'Ann Smith', id: 'user-1', email: 'ann@example.com' } },
+  });
+  await withServer(QENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me?quick=1', { headers: { Cookie: `userjwt=${qtoken()}` } });
+    assert.strictEqual(res.json.signedIn, true);
+    assert.strictEqual(res.json.email, 'ann@example.com', 'the full answer, from Bartenders');
+    assert.strictEqual(res.json.quick, undefined);
+  });
+});
+
+test('the keys games fetch come from the database first, and are kept', async () => {
+  const bartenders = fakeBartenders({ 'GET /rest/v1/public_keys': dbRow(QPEM) });
+  await withServer(QENV, bartenders, async (req) => {
+    const res = await req('GET', `/api/account/keys/${QKID}`);
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json, { kid: QKID, alg: 'RS256', pem: QPEM });
+    await req('GET', `/api/account/keys/${QKID}`);
+    assert.strictEqual(bartenders.calls.length, 1, 'one database lookup, no Bartenders');
+  });
+});
+
+test('without the database settings, me?quick=1 still checks the cookie, with the key from Bartenders', async () => {
+  const bartenders = fakeBartenders({ [`GET /v1/auth/keys/${QKID}`]: { body: { kid: QKID, alg: 'RS256', pem: QPEM } } });
+  await withServer(ENV, bartenders, async (req) => {
+    const res = await req('GET', '/api/account/me?quick=1', { headers: { Cookie: `userjwt=${qtoken()}` } });
+    assert.strictEqual(res.json.signedIn, true);
+    assert.ok(!bartenders.calls.some((c) => c.key === 'GET /rest/v1/public_keys'));
+  });
+});
