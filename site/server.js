@@ -59,6 +59,10 @@ function config(env = process.env) {
     // The OAuth client ID for "Sign in with Google". Not a secret: it's on
     // the sign-in page for anyone to read. Unset, the button isn't shown.
     googleClientId: (env.GOOGLE_CLIENT_ID || '').trim(),
+    // Bartenders' database URL and publishable key, to read login keys
+    // without waiting for Bartenders (see lookupKey in account.js).
+    keysDbUrl: (env.KEYS_SUPABASE_URL || '').trim(),
+    keysDbKey: (env.KEYS_SUPABASE_KEY || '').trim(),
   };
 }
 
@@ -123,8 +127,8 @@ function gameOrigin(origin, cookieDomain) {
 }
 
 function createServer(env = process.env, { fetchImpl } = {}) {
-  const { bartendersUrl, cookieDomain, googleClientId } = config(env);
-  const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl });
+  const { bartendersUrl, cookieDomain, googleClientId, keysDbUrl, keysDbKey } = config(env);
+  const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl, keysDbUrl, keysDbKey });
   const family = createFamily({
     upstream: accounts.upstream,
     available: Boolean(bartendersUrl),

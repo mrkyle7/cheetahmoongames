@@ -569,7 +569,8 @@
             function signedOut() {
                 bar.innerHTML = '<a class="button" href="/login">Sign in</a>';
             }
-            fetch('/api/account/me').then((r) => r.json()).then((me) => {
+            // ?quick=1: checked from the cookie, so a sleeping Bartenders can't hold it up.
+            fetch('/api/account/me?quick=1').then((r) => r.json()).then((me) => {
                 if (!me.signedIn) return signedOut();
                 bar.textContent = '';
                 const who = document.createElement('span');

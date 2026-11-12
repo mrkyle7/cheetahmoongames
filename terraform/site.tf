@@ -91,6 +91,16 @@ resource "google_cloud_run_v2_service" "site" {
         name  = "GOOGLE_CLIENT_ID"
         value = var.google_client_id
       }
+
+      # Login keys from Bartenders' database, like the games (games.tf), so
+      # the home page and /api/account/keys don't wait for Bartenders to wake.
+      dynamic "env" {
+        for_each = local.keys_from_supabase
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
     }
   }
 

@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+
 // Cheetah Moon accounts: one sign-in for every game on cheetahmoongames.com.
 //
 // Accounts live in Bartenders of Corfu (its users table and signing keys);
@@ -17,7 +19,9 @@
 //   POST /api/account/logout
 //   POST /api/account/forgot      { email, next }: email a password reset link
 //   POST /api/account/reset       { token, password, next }: set a new password
-//   GET  /api/account/me          who the login cookie belongs to (and their email)
+//   GET  /api/account/me          who the login cookie belongs to (and their email);
+//                                 ?quick=1: only who, checked here from the
+//                                 cookie (see quickMe), for the home page
 //   POST /api/account/email       { email }: change the signed-in player's email
 //                                 (once they click a link sent to the new one)
 //   POST /api/account/password    { current, password }: change their password
@@ -131,8 +135,14 @@ function readJson(req) {
   });
 }
 
-function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetchImpl = globalThis.fetch }) {
-  const keyCache = new Map();
+function createAccounts({
+  bartendersUrl, cookieDomain, googleClientId = '', fetchImpl = globalThis.fetch,
+  // Bartenders' database and its publishable key (not a secret: it can only
+  // read public_keys), so login keys don't wait for Bartenders to wake up.
+  keysDbUrl = '', keysDbKey = '',
+}) {
+  const keyCache = new Map(); // kid -> { status, body, headers, expires, key }
+  const dbBase = keysDbUrl.replace(/\/+$/, '');
 
   async function upstream(path, { method = 'GET', body, cookie, headers: extra = {} } = {}) {
     const headers = { Accept: 'application/json', ...extra };
@@ -413,23 +423,126 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     return send(502, { error: UNAVAILABLE });
   }
 
+  // A login key's PEM from Bartenders' database (its public_keys table, the
+  // one table the publishable key can read): null if it hasn't got it. Throws
+  // if it can't be asked.
+  async function keyFromDb(kid) {
+    const r = await fetchImpl(`${dbBase}/rest/v1/public_keys?select=public_key&valid=eq.true&kid=eq.${encodeURIComponent(kid)}`, {
+      method: 'GET',
+      headers: { apikey: keysDbKey, Accept: 'application/json' },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!r.ok) throw new Error(`accounts database answered ${r.status}`);
+    const rows = await r.json();
+    const hex = Array.isArray(rows) && rows.length === 1 ? rows[0].public_key : null;
+    // A bytea column comes back as "\x" and hex.
+    if (typeof hex !== 'string' || !/^\\x[0-9a-fA-F]+$/.test(hex)) return null;
+    const pem = Buffer.from(hex.slice(2), 'hex').toString('utf8');
+    return pem.startsWith('-----BEGIN PUBLIC KEY-----') ? pem : null;
+  }
+
+  // The key that checks login cookies signed with `kid`, as /api/account/keys
+  // answers it: from Bartenders' database if it's set up and has it (it never
+  // sleeps), or else from Bartenders itself. Found keys are kept an hour,
+  // unknown ones a minute. Throws if neither can be asked.
+  async function lookupKey(kid) {
+    const cached = keyCache.get(kid);
+    if (cached && cached.expires > Date.now()) return cached;
+    let pem = null;
+    if (dbBase && keysDbKey) {
+      try {
+        pem = await keyFromDb(kid);
+      } catch (err) {
+        console.error(`account: couldn't read signing key ${kid} from the accounts database: ${err.message}`);
+      }
+    }
+    let alg = 'RS256';
+    if (!pem) {
+      const r = await upstream(`/v1/auth/keys/${kid}`);
+      if (r.status === 200 && r.json && typeof r.json.pem === 'string') {
+        pem = r.json.pem;
+        alg = r.json.alg || alg;
+      } else if (r.status !== 404) {
+        throw new Error(`accounts service answered ${r.status}`);
+      }
+    }
+    const entry = pem
+      ? { status: 200, body: { kid, alg, pem }, headers: { 'Cache-Control': 'public, max-age=3600' }, expires: Date.now() + KEY_TTL_MS }
+      : { status: 404, body: { error: 'Unknown key' }, headers: { 'Cache-Control': 'public, max-age=60' }, expires: Date.now() + MISSING_KEY_TTL_MS };
+    keyCache.set(kid, entry);
+    return entry;
+  }
+
   async function key(kid, send) {
     if (!/^[0-9a-fA-F-]{36}$/.test(kid)) return send(404, { error: 'Unknown key' });
-    const cached = keyCache.get(kid);
-    if (cached && cached.expires > Date.now()) return send(cached.status, cached.body, cached.headers);
-
-    const r = await upstream(`/v1/auth/keys/${kid}`);
     let entry;
-    if (r.status === 200 && r.json && typeof r.json.pem === 'string') {
-      const body = { kid: r.json.kid, alg: r.json.alg, pem: r.json.pem };
-      entry = { status: 200, body, headers: { 'Cache-Control': 'public, max-age=3600' }, expires: Date.now() + KEY_TTL_MS };
-    } else if (r.status === 404) {
-      entry = { status: 404, body: { error: 'Unknown key' }, headers: { 'Cache-Control': 'public, max-age=60' }, expires: Date.now() + MISSING_KEY_TTL_MS };
-    } else {
+    try {
+      entry = await lookupKey(kid);
+    } catch {
       return send(502, { error: UNAVAILABLE });
     }
-    keyCache.set(kid, entry);
     return send(entry.status, entry.body, entry.headers);
+  }
+
+  // The claims of a login cookie checked here, as a game's auth.js checks it
+  // (RS256 with the key from lookupKey, not expired): null if it isn't a
+  // valid one. Throws if the key can't be had. Unlike asking Bartenders, this
+  // doesn't know about sign-outs elsewhere or deleted accounts, which games
+  // accept too until the cookie expires.
+  async function verifyCookie(token) {
+    if (typeof token !== 'string' || token.length > 8192) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const part = (s) => {
+      try {
+        const v = JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
+        return v && typeof v === 'object' ? v : null;
+      } catch {
+        return null;
+      }
+    };
+    const header = part(parts[0]);
+    const claims = part(parts[1]);
+    if (!header || !claims || header.alg !== 'RS256') return null;
+    const kid = header.kid || claims.kid;
+    if (typeof kid !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(kid)) return null;
+    const entry = await lookupKey(kid);
+    if (entry.status !== 200) return null;
+    if (!entry.key) entry.key = crypto.createPublicKey(entry.body.pem);
+    const ok = crypto.verify('RSA-SHA256', Buffer.from(`${parts[0]}.${parts[1]}`), entry.key, Buffer.from(parts[2], 'base64url'));
+    if (!ok) return null;
+    if (typeof claims.exp !== 'number' || claims.exp * 1000 <= Date.now()) return null;
+    if (typeof claims.id !== 'string' || typeof claims.sub !== 'string' || !claims.id || !claims.sub) return null;
+    return claims;
+  }
+
+  // Who's signed in, for the home page, without waiting for Bartenders (which
+  // sleeps when nobody's about, and can take longer to wake than a player
+  // waits): the cookie is checked here, and the answer has only what it says:
+  // the name, id, and whether it's a parent playing as their child account
+  // (its `parent` claim; the parent's name isn't in it). Bartenders is still
+  // told about the visit, without waiting, so the owner's login alerts count
+  // it and Bartenders starts waking for whatever comes next. If the key can't
+  // be had at all, it asks Bartenders as `me` does.
+  async function quickMe(req, url, send) {
+    const cookie = loginCookieValue(req);
+    if (!cookie) return send(200, { signedIn: false });
+    let claims;
+    try {
+      claims = await verifyCookie(cookie);
+    } catch (err) {
+      console.error(`account: couldn't check a login cookie here, asking Bartenders: ${err.message}`);
+      return me(req, url, send);
+    }
+    if (!claims) return send(200, { signedIn: false });
+    upstream('/userDetails', { cookie, headers: { 'X-Cheetah-Moon-Home': '1' } })
+      .catch((err) => console.error(`account: couldn't tell Bartenders about a visit: ${err.message}`));
+    const next = safeNext(url.searchParams.get('next') || '/', cookieDomain);
+    return send(200, {
+      signedIn: true, name: claims.sub, id: claims.id, next,
+      childAccount: typeof claims.parent === 'string' && claims.parent !== '',
+      quick: true,
+    });
   }
 
   // Handles /api/account/* (returns true), or leaves the request alone.
@@ -458,7 +571,9 @@ function createAccounts({ bartendersUrl, cookieDomain, googleClientId = '', fetc
     else if (p === '/api/account/forgot' && req.method === 'POST') work = forgot(req, send);
     else if (p === '/api/account/reset' && req.method === 'POST') work = reset(req, send);
     else if (p === '/api/account/verify' && req.method === 'POST') work = verify(req, send);
-    else if (p === '/api/account/me' && req.method === 'GET') work = me(req, url, send);
+    else if (p === '/api/account/me' && req.method === 'GET') {
+      work = url.searchParams.get('quick') === '1' ? quickMe(req, url, send) : me(req, url, send);
+    }
     else if (p === '/api/account/email' && req.method === 'POST') work = changeEmail(req, send);
     else if (p === '/api/account/password' && req.method === 'POST') work = changePassword(req, send);
     else if (p === '/api/account/switch' && req.method === 'POST') work = switchAccount(req, send, false);
