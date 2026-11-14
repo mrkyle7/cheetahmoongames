@@ -139,3 +139,13 @@ test('health check', async () => {
     assert.strictEqual(res.body, 'ok');
   });
 });
+
+test('/api/my-games needs a signed-in player', async () => {
+  await withServer(ENV, async (get) => {
+    const res = await get('GET', '/api/my-games');
+    assert.strictEqual(res.status, 401);
+    assert.match(res.headers['cache-control'], /no-store/);
+    const bad = await get('GET', '/api/my-games', { cookie: 'userjwt=not.a.jwt' });
+    assert.strictEqual(bad.status, 401);
+  });
+});

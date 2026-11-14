@@ -592,7 +592,7 @@ function createAccounts({
     return true;
   }
 
-  return { handle, upstream };
+  return { handle, upstream, verifyCookie };
 }
 
 module.exports = { createAccounts, safeNext, friendlyError, readJson, loginCookieValue };

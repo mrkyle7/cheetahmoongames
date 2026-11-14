@@ -11,6 +11,8 @@
 //                (public/family.html)
 //   /api/family/*  the links between them, kept by Bartenders (see family.js)
 //   /api/account/*  accounts, shared by every game (see account.js)
+//   /api/my-games  the games the signed-in player is in, and whose turn it is
+//                (see games.js)
 //   /assets/*    its images
 //   /sw.js       a service worker that unregisters itself (see below)
 //   /healthz     health check
@@ -25,6 +27,7 @@ const fs = require('fs');
 const path = require('path');
 const { createAccounts, readJson, loginCookieValue } = require('./account');
 const { createFamily } = require('./family');
+const { createMyGames } = require('./games');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
@@ -126,7 +129,7 @@ function gameOrigin(origin, cookieDomain) {
   return host === 'localhost' || host === '127.0.0.1' ? url.origin : null;
 }
 
-function createServer(env = process.env, { fetchImpl } = {}) {
+function createServer(env = process.env, { fetchImpl, gcsToken, myGamesOptions } = {}) {
   const { bartendersUrl, cookieDomain, googleClientId, keysDbUrl, keysDbKey } = config(env);
   const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl, keysDbUrl, keysDbKey });
   const family = createFamily({
@@ -135,6 +138,32 @@ function createServer(env = process.env, { fetchImpl } = {}) {
     readJson,
     cookieOf: loginCookieValue,
   });
+
+  // The players' games, read straight from where each game keeps them. Which
+  // buckets and databases is in the environment (see games.js).
+  const myGames = createMyGames({
+    env, domain: cookieDomain || undefined, fetchImpl, getToken: gcsToken, ...myGamesOptions,
+  });
+
+  // GET /api/my-games: for the signed-in player, as the login cookie says
+  // (checked here, as quickMe does, so nothing waits for Bartenders).
+  async function sendMyGames(req, res) {
+    const json = (status, body) => send(res, status, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    }, JSON.stringify(body));
+    const cookie = loginCookieValue(req);
+    if (!cookie) return json(401, { error: 'Not signed in' });
+    let claims;
+    try {
+      claims = await accounts.verifyCookie(cookie);
+    } catch (err) {
+      console.error(`my games: couldn't check a login cookie: ${err.message}`);
+      return json(503, { error: "Couldn't check your sign-in right now." });
+    }
+    if (!claims) return json(401, { error: 'Not signed in' });
+    return json(200, await myGames.list({ id: claims.id, name: claims.sub }));
+  }
 
   return http.createServer((req, res) => {
     let url;
@@ -200,6 +229,14 @@ function createServer(env = process.env, { fetchImpl } = {}) {
           });
         }
       }
+    }
+
+    if (p === '/api/my-games' && req.method === 'GET') {
+      sendMyGames(req, res).catch((err) => {
+        console.error(`my games: ${err && err.message}`);
+        if (!res.headersSent) send(res, 502, { 'Content-Type': 'application/json' }, JSON.stringify({ error: "Couldn't look up your games." }));
+      });
+      return;
     }
 
     if (accounts.handle(req, res, url, send)) return;
