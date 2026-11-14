@@ -307,6 +307,12 @@ Turn-based games should tell players when it's their move, even with the game cl
 
 The libraries are `web-push` for Node and `pywebpush` for Python. The packages are the only dependency; nothing in this repo changes for a game to send notifications.
 
+## Your games on the home page
+
+The home page lists the signed-in player's games in progress, and whether it's their turn, for the turn-based games (`site/games.js`; the page calls `/api/my-games`). It reads each game's saved tables directly and read-only, so it doesn't wake the game's server: King's Keep and Secret Mermaids from their buckets, Bezique and Bartenders from their Supabase projects. The home page's account is granted that access in `terraform/site.tf`.
+
+A new turn-based game that saves its tables should be added there: a source in `site/games.js` that returns the player's games (`id`, `url`, `with`, `yourTurn`, `updated`), and the read access in `site.tf`. Supabase projects can take a minute to wake, so a source is never waited on for long: the page shows what's ready, and asks again until every game has answered.
+
 ## If something goes wrong
 
 - **The merge run here fails with "Caller is not authorized to administer the domain":**

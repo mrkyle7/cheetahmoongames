@@ -90,6 +90,49 @@
         .shapes .art { background: #5fc3ff; }
         .shapes .art svg { width: 100%; height: 100%; }
 
+        /* Your games in progress, at the top once signed in. */
+        .mygames {
+            margin: 0 0 32px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+        .mygames[hidden] { display: none; }
+        .mygames > summary {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+            padding: 14px 18px; cursor: pointer; font-weight: 700; font-size: 18px;
+            list-style: none;
+        }
+        .mygames > summary::-webkit-details-marker { display: none; }
+        .mygames > summary::before {
+            content: ""; width: 8px; height: 8px; flex: none;
+            border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+            transform: rotate(-45deg); transition: transform 0.15s ease;
+        }
+        .mygames[open] > summary::before { transform: rotate(45deg); }
+        .mygames > summary:focus-visible { outline: 3px solid var(--moon); outline-offset: 2px; border-radius: 12px; }
+        .mygames .count { font-weight: 400; font-size: 15px; color: var(--muted); }
+        .mygames .count .turns { color: var(--moon); font-weight: 700; }
+        .mygames-body { padding: 0 18px 16px; }
+        .mygames-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+        .mygames-list a {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+            padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03); color: inherit; text-decoration: none;
+        }
+        .mygames-list a:hover { border-color: var(--moon); }
+        .mygames-list a:focus-visible { outline: 3px solid var(--moon); outline-offset: 2px; }
+        .mygames-list .title { font-weight: 700; }
+        .mygames-list .with { color: var(--muted); font-size: 14px; flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+        .mygames-list .turn {
+            font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px;
+            border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+        }
+        .mygames-list .mine .turn { background: var(--moon); border-color: var(--moon); color: #1a1a1a; }
+        .mygames-note { margin: 10px 0 0; color: var(--muted); font-size: 14px; }
+        .mygames-note:empty { display: none; }
+        .mygames-empty { margin: 0; color: var(--muted); }
+
         .body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
         .body h2 { margin: 0 0 6px; font-size: 24px; }
         .body p { margin: 0 0 18px; color: var(--muted); }
@@ -157,6 +200,18 @@
                 <p class="lede">Pick a game and play with friends in your browser.</p>
             </div>
         </header>
+
+        <details class="mygames" id="mygames" hidden>
+            <summary>
+                <span>Your games</span>
+                <span class="count" id="mygames-count" role="status" aria-live="polite">Checking&hellip;</span>
+            </summary>
+            <div class="mygames-body">
+                <ul class="mygames-list" id="mygames-list"></ul>
+                <p class="mygames-empty" id="mygames-empty" hidden>No games in progress. Pick one below to start.</p>
+                <p class="mygames-note" id="mygames-note"></p>
+            </div>
+        </details>
 
         <section class="games" aria-label="Games">
             <a class="game bartenders" href="https://bartenders.cheetahmoongames.com/"
@@ -610,6 +665,109 @@
                     family.classList.add('asking');
                 }).catch(() => {});
             }).catch(signedOut);
+        })();
+    </script>
+    
+    <script>
+        // Your games in progress, and whose turn it is, from every turn-based
+        // game. Some games' databases take a while to wake, so the server
+        // answers with what it has and says which are "pending"; keep asking
+        // until they've all answered.
+        (function () {
+            const box = document.getElementById('mygames');
+            const countEl = document.getElementById('mygames-count');
+            const list = document.getElementById('mygames-list');
+            const empty = document.getElementById('mygames-empty');
+            const note = document.getElementById('mygames-note');
+            const GIVE_UP_MS = 5 * 60 * 1000;
+            let started = 0;
+            let timer = null;
+            let running = false;
+
+            try { box.open = localStorage.getItem('mygames-open') !== '0'; } catch (e) { box.open = true; }
+            box.addEventListener('toggle', () => {
+                try { localStorage.setItem('mygames-open', box.open ? '1' : '0'); } catch (e) { /* not kept */ }
+            });
+
+            function render(data, stillChecking) {
+                const games = data.games || [];
+                const sources = Object.values(data.sources || {});
+                list.textContent = '';
+                for (const g of games) {
+                    const item = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.href = g.url;
+                    if (g.yourTurn) link.className = 'mine';
+                    const title = document.createElement('span');
+                    title.className = 'title';
+                    title.textContent = g.title;
+                    const who = document.createElement('span');
+                    who.className = 'with';
+                    who.textContent = g.with && g.with.length ? 'with ' + g.with.join(', ') : '';
+                    const turn = document.createElement('span');
+                    turn.className = 'turn';
+                    turn.textContent = g.yourTurn ? 'Your turn' : 'Their turn';
+                    link.append(title, who, turn);
+                    item.append(link);
+                    list.append(item);
+                }
+                const mine = games.filter((g) => g.yourTurn).length;
+                countEl.textContent = '';
+                if (games.length) {
+                    countEl.append(games.length + (games.length === 1 ? ' game in progress' : ' games in progress'));
+                    if (mine) {
+                        const t = document.createElement('span');
+                        t.className = 'turns';
+                        t.textContent = ' \u00b7 ' + mine + ' your turn';
+                        countEl.append(t);
+                    }
+                    if (stillChecking) countEl.append(' \u00b7 checking\u2026');
+                } else {
+                    countEl.textContent = stillChecking ? 'Checking\u2026' : 'None in progress';
+                }
+                empty.hidden = games.length > 0 || stillChecking;
+                const waiting = sources.filter((s) => s.status === 'pending').map((s) => s.title);
+                const failed = sources.filter((s) => s.status === 'error').map((s) => s.title);
+                const parts = [];
+                if (waiting.length) parts.push('Still checking ' + waiting.join(', ') + ' (it can take a minute to wake up).');
+                if (failed.length) parts.push("Couldn't check " + failed.join(', ') + (stillChecking ? ': trying again.' : '. Reload to try again.'));
+                note.textContent = parts.join(' ');
+            }
+
+            async function check() {
+                if (running) return;
+                running = true;
+                clearTimeout(timer);
+                if (!started) started = Date.now();
+                let data = null;
+                try {
+                    const res = await fetch('/api/my-games', { cache: 'no-store' });
+                    if (res.status === 401) { box.hidden = true; running = false; return; }
+                    if (res.ok) data = await res.json();
+                } catch (e) { /* offline: try again below */ }
+                running = false;
+                const sources = data ? Object.values(data.sources || {}) : [];
+                const pending = !data || sources.some((s) => s.status === 'pending');
+                const failed = sources.some((s) => s.status === 'error');
+                const more = (pending || failed) && Date.now() - started < GIVE_UP_MS;
+                if (data) {
+                    box.hidden = false;
+                    render(data, more);
+                } else if (!more) {
+                    box.hidden = false;
+                    countEl.textContent = "Couldn't check";
+                    note.textContent = 'Reload to try again.';
+                }
+                if (more) timer = setTimeout(check, pending ? 2500 : 15000);
+            }
+
+            check();
+            // Back on the tab after a while: games may have moved on.
+            let hiddenAt = 0;
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) { hiddenAt = Date.now(); return; }
+                if (hiddenAt && Date.now() - hiddenAt > 30000 && !box.hidden) { started = 0; check(); }
+            });
         })();
     </script>
 </body>
