@@ -129,7 +129,7 @@ function gameOrigin(origin, cookieDomain) {
   return host === 'localhost' || host === '127.0.0.1' ? url.origin : null;
 }
 
-function createServer(env = process.env, { fetchImpl, gcsToken } = {}) {
+function createServer(env = process.env, { fetchImpl, gcsToken, myGamesOptions } = {}) {
   const { bartendersUrl, cookieDomain, googleClientId, keysDbUrl, keysDbKey } = config(env);
   const accounts = createAccounts({ bartendersUrl, cookieDomain, googleClientId, fetchImpl, keysDbUrl, keysDbKey });
   const family = createFamily({
@@ -142,7 +142,7 @@ function createServer(env = process.env, { fetchImpl, gcsToken } = {}) {
   // The players' games, read straight from where each game keeps them. Which
   // buckets and databases is in the environment (see games.js).
   const myGames = createMyGames({
-    env, domain: cookieDomain || undefined, fetchImpl, getToken: gcsToken,
+    env, domain: cookieDomain || undefined, fetchImpl, getToken: gcsToken, ...myGamesOptions,
   });
 
   // GET /api/my-games: for the signed-in player, as the login cookie says

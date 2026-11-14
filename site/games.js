@@ -23,6 +23,18 @@
 // answer is there for the next ask.
 //
 // A source with its settings missing is simply left out.
+//
+// Three things to know before changing this file (see CLAUDE.md):
+//
+// - It is a shortcut. Reading each game's storage directly isn't the best
+//   design (each game answering for itself would be, with no copy of its rules
+//   here); it's done because asking the games would wake their servers.
+// - It holds secret keys, in a public service. Never let one into a response,
+//   a log or an error, never read more than the signed-in player's own games,
+//   and keep every query's id through safeId. test/games-secrets.test.js
+//   checks it.
+// - mermaidsAwaiting() and the other "whose turn" readings copy rules from the
+//   game repos. Change them here whenever the game's logic or saved data does.
 
 const API = 'https://storage.googleapis.com';
 const TOKEN_URL = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';

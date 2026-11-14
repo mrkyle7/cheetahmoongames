@@ -311,6 +311,8 @@ The libraries are `web-push` for Node and `pywebpush` for Python. The packages a
 
 The home page lists the signed-in player's games in progress, and whether it's their turn, for the turn-based games (`site/games.js`; the page calls `/api/my-games`). It reads each game's saved tables directly and read-only, so it doesn't wake the game's server: King's Keep and Secret Mermaids from their buckets, Bezique and Bartenders from their Supabase projects. The home page's account is granted that access in `terraform/site.tf`.
 
+This isn't the best design: the tidy way is for each game to answer for itself, with no copy of its rules here. It's done this way because asking the games would wake their servers, which is slow (Bartenders and Bezique especially). It also means the home page holds the Supabase secret keys, so `CLAUDE.md` has rules for keeping them safe, and a game's "whose turn" logic and saved data are copied into `site/games.js`: **changing either in a game means changing `site/games.js` here too.**
+
 A new turn-based game that saves its tables should be added there: a source in `site/games.js` that returns the player's games (`id`, `url`, `with`, `yourTurn`, `updated`), and the read access in `site.tf`. Supabase projects can take a minute to wake, so a source is never waited on for long: the page shows what's ready, and asks again until every game has answered.
 
 ## If something goes wrong
