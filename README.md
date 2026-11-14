@@ -60,6 +60,7 @@ site/                  the home page: a small Node server with no dependencies
   public/profile.html  your account: change your email or password
   public/family.html   parents and their children: see how they're doing in the games
   family.js            /api/family/*: who's whose parent, passed on to Bartenders
+  games.js             /api/my-games: the signed-in player's games in progress, read from each game's storage
   account.js           /api/account/*: sign-in, passed on to Bartenders
 terraform/
   games.tf             the list of games (edit this to add one)
