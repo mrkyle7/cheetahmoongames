@@ -13,7 +13,9 @@
 //   /api/account/*  accounts, shared by every game (see account.js)
 //   /api/my-games  the games the signed-in player is in, and whose turn it is
 //                (see games.js)
-//   /assets/*    its images
+//   /assets/*    its images and icons
+//   /manifest.webmanifest  makes it installable as an app that opens without
+//                the browser's bar (display: standalone)
 //   /sw.js       a service worker that unregisters itself (see below)
 //   /healthz     health check
 //   anything else redirects to the same path on BARTENDERS_URL, because
@@ -42,6 +44,7 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
 };
 
 // Browsers that installed the Bartenders service worker when it lived on this
@@ -241,6 +244,10 @@ function createServer(env = process.env, { fetchImpl, gcsToken, myGamesOptions }
 
     if (accounts.handle(req, res, url, send)) return;
     if (family.handle(req, res, url, send)) return;
+
+    if (p === '/manifest.webmanifest' && read) {
+      return serveFile(req, res, path.join(PUBLIC_DIR, 'manifest.webmanifest'), { 'Cache-Control': 'public, max-age=3600' });
+    }
 
     if (p === '/sw.js' && read) {
       return send(res, 200, {
