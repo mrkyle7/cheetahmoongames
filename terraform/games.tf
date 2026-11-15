@@ -264,10 +264,8 @@ locals {
       subdomain   = "guess-what-it-is"
       github_repo = "mrkyle7/guess-what-it-is"
 
-      # Each player's place in a story, and the narrator's recordings
-      # (guess-what-it-is.tf). Login keys from Bartenders' database. To let
-      # an account that isn't a site admin record the narration at /record,
-      # add VOICE_ACTOR_IDS = "<account id>,<account id>".
+      # Each player's place in each story (guess-what-it-is.tf). Login keys
+      # from Bartenders' database.
       env = merge({ GAMES_BUCKET = "${var.project_name}-guess-what-it-is" }, local.keys_from_supabase)
     }
   }

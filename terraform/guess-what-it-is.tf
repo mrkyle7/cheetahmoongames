@@ -1,17 +1,11 @@
 # ---------------------------------------------------------------------------
-# Guess What It Is keeps two things in a bucket of its own (see
-# mrkyle7/guess-what-it-is store.js):
+# Guess What It Is keeps each signed-in player's place in each story in a
+# bucket of its own, so they can come back to it on any device: one JSON file
+# per player (players/<id>.json) with the answers they've given so far (see
+# mrkyle7/guess-what-it-is store.js).
 #
-#   players/<id>.json   each signed-in player's place in each story: the
-#                       answers they've given so far, so they can come back
-#                       to it on any device
-#   voice/<id>          the narrator's recording of one line of a story,
-#                       made at /record and played instead of the device's
-#                       voice
-#
-# Both are kept for good, so there's no lifecycle rule. Only
-# guess-what-it-is-run can read or write it; players hear recordings through
-# the game's server, never from the bucket. It's a regional Standard bucket
+# Records are kept for good, so there's no lifecycle rule. Only
+# guess-what-it-is-run can read or write it. It's a regional Standard bucket
 # in us-east1, which the Cloud Storage free tier covers.
 # ---------------------------------------------------------------------------
 
