@@ -85,6 +85,33 @@ test('serves a service worker that unregisters itself', async () => {
   });
 });
 
+test('installable as an app that opens without the browser bar', async () => {
+  await withServer(ENV, async (get) => {
+    const res = await get('GET', '/manifest.webmanifest');
+    assert.strictEqual(res.status, 200);
+    assert.match(res.headers['content-type'], /^application\/manifest\+json/);
+    const manifest = JSON.parse(res.body);
+    assert.strictEqual(manifest.display, 'standalone');
+    assert.strictEqual(manifest.start_url, '/');
+    for (const size of ['192x192', '512x512']) {
+      const icon = manifest.icons.find((i) => i.sizes === size && i.purpose === 'any');
+      assert.ok(icon, size);
+      assert.strictEqual((await get('GET', icon.src)).status, 200, icon.src);
+    }
+    assert.ok(manifest.icons.some((i) => i.purpose === 'maskable'));
+    assert.strictEqual((await get('GET', '/assets/icons/apple-touch-icon.png')).status, 200);
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(__dirname, '..', 'public');
+    for (const page of fs.readdirSync(dir).filter((f) => f.endsWith('.html'))) {
+      const html = fs.readFileSync(path.join(dir, page), 'utf8');
+      assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest">/, page);
+      assert.match(html, /<link rel="apple-touch-icon" href="\/assets\/icons\/apple-touch-icon\.png">/, page);
+      assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes">/, page);
+    }
+  });
+});
+
 test('moves an old host-only login cookie onto the shared domain', async () => {
   await withServer(ENV, async (get) => {
     for (const path of ['/', '/game?id=1']) {

@@ -104,8 +104,9 @@ BARTENDERS_URL=https://bartenders.cheetahmoongames.com npm start   # http://loca
 
 Besides that, the server handles traffic for Bartenders, which used to live on this domain:
 
-- Every path other than `/`, `/login`, `/reset-password`, `/verify-email`, `/profile`, `/family`, `/api/account/*`, `/api/family/*`, `/assets/*`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
+- Every path other than `/`, `/login`, `/reset-password`, `/verify-email`, `/profile`, `/family`, `/api/account/*`, `/api/family/*`, `/assets/*`, `/manifest.webmanifest`, `/sw.js` and `/healthz` redirects (307) to the same path on `BARTENDERS_URL`, so old game links, bookmarks and push notifications keep working.
 - `/sw.js` serves a service worker that unregisters itself, which clears out the one Bartenders installed on this domain.
+- **Installing:** the home page installs as an app that opens without the browser's bar (`site/public/manifest.webmanifest`, `display: standalone`; icons in `site/public/assets/icons/`, rendered from `favicon.svg` with `scripts/render-icons.js`). Every page links the manifest and the Apple icon. Chrome no longer needs a service worker to install, so `/sw.js` still only retires the old one. Games are on their own subdomains, so a game opened from the installed home page shows a slim bar with its address; each game installs as its own app too.
 - A Bartenders login cookie from before the move only belongs to this domain. The server moves it onto `COOKIE_DOMAIN` (the whole of `cheetahmoongames.com`), so players stay logged in when they follow a link to the game.
 
 ## Working with the Terraform locally
