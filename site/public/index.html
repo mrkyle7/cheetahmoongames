@@ -89,6 +89,8 @@
         .science .art img { width: 100%; height: 100%; object-fit: cover; }
         .shapes .art { background: #5fc3ff; }
         .shapes .art svg { width: 100%; height: 100%; }
+        .guess .art { background: #12142a; }
+        .guess .art svg { width: 100%; height: 100%; }
 
         /* Your games in progress, at the top once signed in. */
         .mygames {
@@ -163,6 +165,7 @@
         .pirates .play { background: #8a4b14; }
         .science .play { background: #0f766e; }
         .shapes .play { background: #b3261e; }
+        .guess .play { background: #5b3fb0; }
 
         footer {
             margin-top: 44px; color: var(--muted); font-size: 14px;
@@ -604,6 +607,33 @@
                     <h2>Etymon</h2>
                     <p>You are a word, drifting through a thousand years of meaning. "Nice" once meant foolish: steer it to "pleasant" before everyone stops saying it, and try to match the perfect route.</p>
                     <span class="play">Play Etymon</span>
+                </div>
+            </a>
+
+            <a class="game guess" href="https://guess-what-it-is.cheetahmoongames.com/"
+               aria-label="Play Guess What It Is">
+                <div class="art">
+                    <!-- The game's icon: a magnifying glass over a paw print, under the Cheetah Moon. -->
+                    <svg viewBox="-120 0 752 512" aria-hidden="true">
+                        <circle cx="392" cy="112" r="58" fill="#f3d36b"/>
+                        <circle cx="376" cy="96" r="9" fill="#8a6410"/>
+                        <circle cx="408" cy="120" r="7" fill="#8a6410"/>
+                        <circle cx="384" cy="140" r="8" fill="#8a6410"/>
+                        <path d="M318 330L436 448" stroke="#b9824c" stroke-width="46" stroke-linecap="round"/>
+                        <circle cx="220" cy="250" r="140" fill="#f6ecd2" stroke="#f3d36b" stroke-width="30"/>
+                        <g fill="#2a2118">
+                            <ellipse cx="220" cy="290" rx="52" ry="42"/>
+                            <ellipse cx="150" cy="232" rx="20" ry="27" transform="rotate(-24 150 232)"/>
+                            <ellipse cx="196" cy="192" rx="20" ry="28" transform="rotate(-8 196 192)"/>
+                            <ellipse cx="246" cy="192" rx="20" ry="28" transform="rotate(8 246 192)"/>
+                            <ellipse cx="290" cy="232" rx="20" ry="27" transform="rotate(24 290 232)"/>
+                        </g>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>Guess What It Is</h2>
+                    <p>You are the detective. Watch an animated mystery, listen for the clues, and answer ten questions to work out who did it. Told three ways, for ages 5 to 6, 8 to 9 and grown-ups, and it keeps your place.</p>
+                    <span class="play">Play Guess What It Is</span>
                 </div>
             </a>
         </section>
