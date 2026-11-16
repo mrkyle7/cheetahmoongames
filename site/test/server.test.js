@@ -112,6 +112,22 @@ test('installable as an app that opens without the browser bar', async () => {
   });
 });
 
+test('in the installed app, game links open in their own installed apps', async () => {
+  await withServer(ENV, async (get) => {
+    const res = await get('GET', '/assets/apps.js');
+    assert.strictEqual(res.status, 200);
+    assert.match(res.headers['content-type'], /javascript/);
+    assert.match(res.body, /display-mode/);
+    assert.match(res.body, /_blank/);
+    const fs = require('fs');
+    const path = require('path');
+    for (const page of ['index.html', 'family.html']) {
+      const html = fs.readFileSync(path.join(__dirname, '..', 'public', page), 'utf8');
+      assert.match(html, /<script src="\/assets\/apps\.js" defer><\/script>/, page);
+    }
+  });
+});
+
 test('moves an old host-only login cookie onto the shared domain', async () => {
   await withServer(ENV, async (get) => {
     for (const path of ['/', '/game?id=1']) {
