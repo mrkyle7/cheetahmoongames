@@ -268,6 +268,18 @@ locals {
       # from Bartenders' database.
       env = merge({ GAMES_BUCKET = "${var.project_name}-guess-what-it-is" }, local.keys_from_supabase)
     }
+
+    # My Life: a life simulator, from newborn up. The game runs on the server
+    # and every move is saved, with a generation check, so players can land
+    # on any instance and the defaults suit it.
+    my-life = {
+      name        = "my-life"
+      subdomain   = "my-life"
+      github_repo = "mrkyle7/my-life"
+
+      # Each player's life (my-life.tf). Login keys from Bartenders' database.
+      env = merge({ GAMES_BUCKET = "${var.project_name}-my-life" }, local.keys_from_supabase)
+    }
   }
 }
 
