@@ -22,6 +22,7 @@ function world(over = {}) {
       { name: 'tables/AAAA.json', metadata: { status: 'playing', players: JSON.stringify(['me-1', 'x']), names: JSON.stringify(['Kyle', 'Ann']), turn: 'me-1', updated: '5' } },
       { name: 'tables/BBBB.json', metadata: { status: 'playing', players: JSON.stringify(['me-1', 'x']), names: JSON.stringify(['Kyle', 'Bob']), turn: 'x', updated: '9' } },
       { name: 'tables/CCCC.json', metadata: { status: 'over', players: JSON.stringify(['me-1']), names: '[]', turn: '', updated: '1' } },
+      { name: 'tables/LLLL.json', metadata: { status: 'lobby', players: JSON.stringify(['me-1']), names: JSON.stringify(['Kyle', 'Bot Bo']), turn: '', updated: '3' } },
       { name: 'tables/DDDD.json', metadata: { status: 'playing', players: JSON.stringify(['y']), names: '["Y"]', turn: 'y', updated: '1' } },
     ],
     sm: {
@@ -32,11 +33,12 @@ function world(over = {}) {
     bezique: [
       { id: 'b1', updated_at: '2026-11-01T10:00:00Z', started: true, over: false, players: [{ id: 'me-1', name: 'Kyle', cardsSelectableForTrick: true }, { id: 'q', name: 'Quinn' }] },
       { id: 'b2', updated_at: '2026-11-02T10:00:00Z', started: true, over: true, players: [] },
-      { id: 'b3', updated_at: '2026-11-03T10:00:00Z', started: false, over: false, players: [] },
+      { id: 'b3', updated_at: '2026-11-03T10:00:00Z', started: false, over: false, players: [{ id: 'me-1', name: 'Kyle' }] },
     ],
     bartenders: [
-      { id: 'g1', players: ['ME-1', 'u2'], created_at: '2026-11-01T00:00:00Z', turn: 'u2', winner: null },
-      { id: 'g2', players: ['me-1', 'u3'], created_at: '2026-11-02T00:00:00Z', turn: 'me-1', winner: null },
+      { id: 'g1', status: 'STARTED', players: ['ME-1', 'u2'], created_at: '2026-11-01T00:00:00Z', turn: 'u2', winner: null },
+      { id: 'g2', status: 'STARTED', players: ['me-1', 'u3'], created_at: '2026-11-02T00:00:00Z', turn: 'me-1', winner: null },
+      { id: 'g3', status: 'NEW', players: ['me-1', 'u2'], created_at: '2026-11-03T00:00:00Z', turn: null, winner: null },
     ],
     dbDown: 0, // how many database requests fail before it's awake
     ...over,
@@ -81,7 +83,7 @@ test('finds the games in progress in all four games and whose turn it is', async
     bartenders: { title: 'Bartenders of Corfu', status: 'ok' },
   });
   const by = Object.fromEntries(mine.games.map((g) => [`${g.game}/${g.id}`, g]));
-  assert.deepStrictEqual(Object.keys(by).sort(), ['bartenders/g1', 'bartenders/g2', 'bezique/b1', 'kings-keep/AAAA', 'kings-keep/BBBB', 'secret-mermaids/m1']);
+  assert.deepStrictEqual(Object.keys(by).sort(), ['bartenders/g1', 'bartenders/g2', 'bartenders/g3', 'bezique/b1', 'bezique/b3', 'kings-keep/AAAA', 'kings-keep/BBBB', 'kings-keep/LLLL', 'secret-mermaids/m1', 'secret-mermaids/m3']);
   assert.strictEqual(by['kings-keep/AAAA'].yourTurn, true);
   assert.strictEqual(by['kings-keep/BBBB'].yourTurn, false);
   assert.deepStrictEqual(by['kings-keep/AAAA'].with, ['Ann']);
@@ -99,6 +101,39 @@ test('finds the games in progress in all four games and whose turn it is', async
   // Their turn last: the games waiting on you come first.
   const turns = mine.games.map((g) => g.yourTurn);
   assert.deepStrictEqual(turns, [...turns].sort((a, b) => Number(b) - Number(a)));
+});
+
+test('games still waiting to start are listed, with who has joined', async () => {
+  const mine = await make(world()).list(ME);
+  const by = Object.fromEntries(mine.games.map((g) => [`${g.game}/${g.id}`, g]));
+  const started = ['kings-keep/AAAA', 'kings-keep/BBBB', 'secret-mermaids/m1', 'bezique/b1', 'bartenders/g1', 'bartenders/g2'];
+  for (const k of started) assert.strictEqual(by[k].waiting, false, k);
+  for (const k of ['kings-keep/LLLL', 'secret-mermaids/m3', 'bezique/b3', 'bartenders/g3']) {
+    assert.strictEqual(by[k].waiting, true, k);
+    assert.strictEqual(by[k].yourTurn, false, `${k} has no turn yet`);
+  }
+  assert.deepStrictEqual(by['kings-keep/LLLL'].with, ['Bot Bo']);
+  assert.strictEqual(by['kings-keep/LLLL'].joined, 2);
+  assert.strictEqual(by['kings-keep/LLLL'].max, 5);
+  assert.deepStrictEqual(by['secret-mermaids/m3'].with, []);
+  assert.strictEqual(by['secret-mermaids/m3'].joined, 1);
+  assert.strictEqual(by['secret-mermaids/m3'].max, 4);
+  assert.strictEqual(by['bezique/b3'].joined, 1);
+  assert.strictEqual(by['bezique/b3'].max, 2);
+  assert.deepStrictEqual(by['bartenders/g3'].with, ['Una']);
+  assert.strictEqual(by['bartenders/g3'].joined, 2);
+  assert.strictEqual(by['bartenders/g3'].max, 4);
+  assert.strictEqual(by['bartenders/g3'].url, 'https://bartenders.cheetahmoongames.com/bar?id=g3');
+  // Games under way come before games waiting to start (their turn or not).
+  const order = mine.games.filter((g) => !g.yourTurn).map((g) => g.waiting);
+  assert.deepStrictEqual(order, [...order].sort((a, b) => Number(a) - Number(b)));
+});
+
+test('Bartenders is asked for new and started games, not finished ones', async () => {
+  const w = world();
+  await make(w).list(ME);
+  const q = w.calls.find((u) => u.startsWith('https://bt.example/rest/v1/games?'));
+  assert.match(q, /status=in\.\(NEW,STARTED\)/);
 });
 
 test('a game this player is not in is not listed', async () => {

@@ -140,6 +140,7 @@
             font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px;
             border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
         }
+        .mygames-list .waiting .turn { border-style: dashed; }
         .mygames-list .mine .turn { background: var(--moon); border-color: var(--moon); color: #1a1a1a; }
         .mygames-note { margin: 10px 0 0; color: var(--muted); font-size: 14px; }
         .mygames-note:empty { display: none; }
@@ -763,23 +764,32 @@
                     const link = document.createElement('a');
                     link.href = g.url;
                     if (g.yourTurn) link.className = 'mine';
+                    else if (g.waiting) link.className = 'waiting';
                     const title = document.createElement('span');
                     title.className = 'title';
                     title.textContent = g.title;
                     const who = document.createElement('span');
                     who.className = 'with';
-                    who.textContent = g.with && g.with.length ? 'with ' + g.with.join(', ') : '';
+                    const others = g.with && g.with.length ? 'with ' + g.with.join(', ') : '';
+                    who.textContent = g.waiting
+                        ? (others || 'No one else has joined yet') + (g.joined && g.max ? ' \u00b7 ' + g.joined + '/' + g.max + ' players' : '')
+                        : others;
                     const turn = document.createElement('span');
                     turn.className = 'turn';
-                    turn.textContent = g.yourTurn ? 'Your turn' : 'Their turn';
+                    turn.textContent = g.waiting ? 'Waiting to start' : g.yourTurn ? 'Your turn' : 'Their turn';
                     link.append(title, who, turn);
                     item.append(link);
                     list.append(item);
                 }
                 const mine = games.filter((g) => g.yourTurn).length;
+                const waiting = games.filter((g) => g.waiting).length;
+                const playing = games.length - waiting;
                 countEl.textContent = '';
                 if (games.length) {
-                    countEl.append(games.length + (games.length === 1 ? ' game in progress' : ' games in progress'));
+                    const parts = [];
+                    if (playing) parts.push(playing + (playing === 1 ? ' game in progress' : ' games in progress'));
+                    if (waiting) parts.push(waiting + ' waiting to start');
+                    countEl.append(parts.join(' \u00b7 '));
                     if (mine) {
                         const t = document.createElement('span');
                         t.className = 'turns';
@@ -791,10 +801,10 @@
                     countEl.textContent = stillChecking ? 'Checking\u2026' : 'None in progress';
                 }
                 empty.hidden = games.length > 0 || stillChecking;
-                const waiting = sources.filter((s) => s.status === 'pending').map((s) => s.title);
+                const checking = sources.filter((s) => s.status === 'pending').map((s) => s.title);
                 const failed = sources.filter((s) => s.status === 'error').map((s) => s.title);
                 const parts = [];
-                if (waiting.length) parts.push('Still checking ' + waiting.join(', ') + ' (it can take a minute to wake up).');
+                if (checking.length) parts.push('Still checking ' + checking.join(', ') + ' (it can take a minute to wake up).');
                 if (failed.length) parts.push("Couldn't check " + failed.join(', ') + (stillChecking ? ': trying again.' : '. Reload to try again.'));
                 note.textContent = parts.join(' ');
             }

@@ -113,7 +113,7 @@ test('the answer has only the fields the page needs, and never a key', async () 
     const data = JSON.parse(r.body);
     assert.deepStrictEqual(Object.keys(data).sort(), ['games', 'sources']);
     for (const g of data.games) {
-      assert.deepStrictEqual(Object.keys(g).sort(), ['game', 'id', 'title', 'updated', 'url', 'with', 'yourTurn']);
+      assert.deepStrictEqual(Object.keys(g).sort(), ['game', 'id', 'joined', 'max', 'title', 'updated', 'url', 'waiting', 'with', 'yourTurn']);
     }
     for (const s of Object.values(data.sources)) assert.deepStrictEqual(Object.keys(s).sort(), ['status', 'title']);
   });

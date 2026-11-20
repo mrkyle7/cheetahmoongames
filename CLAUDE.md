@@ -15,19 +15,19 @@ The home page's "Your games" section (`site/games.js`, `/api/my-games`, `terrafo
 - **Only a plain account id goes into a query** (`safeId`). Don't build queries from anything else a player sends, and don't loosen `safeId`.
 - **Send each key only to its own database,** and the bucket token only to `storage.googleapis.com`.
 - **Read-only.** No inserts, updates, deletes, RPC calls or writes to a bucket. Keep the IAM in `site.tf` to `objectViewer` and `secretAccessor` on exactly these buckets and secrets.
-- **Return only what the page shows** (`game, title, id, url, with, yourTurn, updated`). Don't pass saved game state, hands or other players' ids to the browser.
+- **Return only what the page shows** (`game, title, id, url, with, yourTurn, waiting, joined, max, updated`). Don't pass saved game state, hands or other players' ids to the browser.
 - `site/test/games-secrets.test.js` checks all of this. If it fails, fix the code: never loosen or delete a test to get green. Add a test for any new way a key or another player's data could leave the server.
 
 ## "Your games" mirrors each game's own rules: check here when you change them
 
 "Your games" reads each game's saved data and works out whose turn it is itself, so it has copies of rules that live in the game repos:
 
-- **Secret Mermaids:** `mermaidsAwaiting()` in `site/games.js` is `Game#awaiting()` (`src/Game.js`), applied to a saved game file. Its saved files carry no "whose turn" data.
-- **Bezique:** your turn is `cardsSelectableForTrick || cardsSelectableForMeld` on the player in the saved state (`src/bezique/snapshot.js`); in progress is `started && !gameOver`.
-- **Bartenders:** `latest_state.player_turn`, `latest_state.winner` and `status = STARTED` in the `games` table.
-- **King's Keep:** the object metadata its store writes (`players`, `names`, `status`, `turn`, `updated`: `summary()` in `src/rooms.js`).
+- **Secret Mermaids:** `mermaidsAwaiting()` in `site/games.js` is `Game#awaiting()` (`src/Game.js`), applied to a saved game file. Its saved files carry no "whose turn" data. Waiting to start is `!started && !over`.
+- **Bezique:** your turn is `cardsSelectableForTrick || cardsSelectableForMeld` on the player in the saved state (`src/bezique/snapshot.js`); in progress is `started && !gameOver`, and waiting to start is `!started`.
+- **Bartenders:** `latest_state.player_turn`, `latest_state.winner` and `status` (`STARTED`, or `NEW` for waiting to start) in the `games` table.
+- **King's Keep:** the object metadata its store writes (`players`, `names`, `status` (`playing`, or `lobby` for waiting to start), `turn`, `updated`: `summary()` in `src/rooms.js`).
 
-**When you change core game logic, the shape of what a game saves, the bucket file or metadata, or a Supabase table or column in one of these games, update `site/games.js` (and its tests) in this repo in the same piece of work, and open a pull request here too.** Otherwise the home page shows the wrong turn, or nothing, with no error in the game itself. Each game's own CLAUDE.md says the same.
+**When you change core game logic, the shape of what a game saves, the bucket file or metadata, or a Supabase table or column in one of these games, update `site/games.js` (and its tests) in this repo in the same piece of work, and open a pull request here too.** The maximum players it shows for each game (`max` in `site/games.js`) is copied too: King's Keep `MAX_PLAYERS`, Secret Mermaids `MAX_SEATS`, Bartenders 4, Bezique 2. Otherwise the home page shows the wrong turn, or nothing, with no error in the game itself. Each game's own CLAUDE.md says the same.
 
 ## Reading buckets and databases directly isn't the best way
 
