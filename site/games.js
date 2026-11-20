@@ -1,7 +1,8 @@
 'use strict';
 
 // "Your games": the games a signed-in player is in the middle of, across the
-// turn-based games, and whether it's their turn in each. The home page shows
+// turn-based games, and whether it's their turn in each, plus the games they've
+// joined that are still waiting to start, and who has joined so far. The home page shows
 // them (GET /api/my-games, see server.js).
 //
 // Each game keeps its tables somewhere of its own, and this reads them there
@@ -158,7 +159,7 @@ function createMyGames({
         const games = [];
         for (const f of files) {
           const m = f.metadata || {};
-          if (m.status !== 'playing') continue;
+          if (m.status !== 'playing' && m.status !== 'lobby') continue;
           let ids;
           let names;
           try {
@@ -173,7 +174,10 @@ function createMyGames({
             id: code,
             url: `${origin('kings-keep')}/r/${encodeURIComponent(code)}`,
             with: names.filter((n) => n !== player.name),
-            yourTurn: m.turn === player.id,
+            yourTurn: m.status === 'playing' && m.turn === player.id,
+            waiting: m.status === 'lobby',
+            joined: names.length,
+            max: 5, // MAX_PLAYERS in kings-keep src/engine.js
             updated: Number(m.updated) || 0,
           });
         }
@@ -189,6 +193,8 @@ function createMyGames({
     const seen = new Map();
     const summarise = (g) => ({
       active: Boolean(g.started && !g.over),
+      waiting: Boolean(!g.started && !g.over),
+      names: (g.players || []).map((p) => p.name),
       players: (g.players || []).filter((p) => !p.isBot).map((p) => ({ id: p.id, name: p.name })),
       awaiting: g.started && !g.over ? mermaidsAwaiting(g) : [],
       updated: Number(g.updatedAt) || 0,
@@ -218,13 +224,16 @@ function createMyGames({
         }));
         const games = [];
         for (const [path, { game }] of seen) {
-          if (!game.active || !game.players.some((p) => p.id === player.id)) continue;
+          if (!(game.active || game.waiting) || !game.players.some((p) => p.id === player.id)) continue;
           const id = path.slice('games/'.length, -'.json'.length);
           games.push({
             id,
             url: `${origin('secret-mermaids')}/game/${encodeURIComponent(id)}`,
             with: game.players.filter((p) => p.id !== player.id).map((p) => p.name),
-            yourTurn: game.awaiting.includes(player.id),
+            yourTurn: game.active && game.awaiting.includes(player.id),
+            waiting: game.waiting,
+            joined: game.names.length,
+            max: 4, // MAX_SEATS in secret-mermaids src/Game.js
             updated: game.updated,
           });
         }
@@ -242,14 +251,17 @@ function createMyGames({
         const id = safeId(player.id);
         const rows = await rest(bezique, `games?player_ids=cs.{${id}}&select=id,updated_at,started:state->started,over:state->gameOver,players:state->players`
           + '&order=updated_at.desc&limit=100');
-        return rows.filter((r) => r.started === true && r.over !== true).map((r) => {
+        return rows.filter((r) => r.over !== true).map((r) => {
           const players = Array.isArray(r.players) ? r.players : [];
           const me = players.find((p) => p.id === id);
           return {
             id: r.id,
             url: `${origin('bezique')}/game/${encodeURIComponent(r.id)}`,
             with: players.filter((p) => p.id !== id).map((p) => p.name),
-            yourTurn: Boolean(me && (me.cardsSelectableForTrick || me.cardsSelectableForMeld)),
+            yourTurn: r.started === true && Boolean(me && (me.cardsSelectableForTrick || me.cardsSelectableForMeld)),
+            waiting: r.started !== true,
+            joined: players.length,
+            max: 2,
             updated: Date.parse(r.updated_at) || 0,
           };
         });
@@ -264,7 +276,7 @@ function createMyGames({
       title: 'Bartenders of Corfu',
       async fetch(player) {
         const id = safeId(player.id);
-        const rows = await rest(bartenders, `games?status=eq.STARTED&players=cs.{${id}}&select=id,players,created_at,turn:latest_state->>player_turn,winner:latest_state->>winner`
+        const rows = await rest(bartenders, `games?status=in.(NEW,STARTED)&players=cs.{${id}}&select=id,players,status,created_at,turn:latest_state->>player_turn,winner:latest_state->>winner`
           + '&order=created_at.desc&limit=50');
         const lower = id.toLowerCase();
         const others = new Set();
@@ -283,7 +295,10 @@ function createMyGames({
           id: r.id,
           url: `${origin('bartenders')}/bar?id=${encodeURIComponent(r.id)}`,
           with: (r.players || []).map((p) => String(p).toLowerCase()).filter((p) => p !== lower).map((p) => names.get(p)).filter(Boolean),
-          yourTurn: typeof r.turn === 'string' && r.turn.toLowerCase() === lower,
+          yourTurn: r.status === 'STARTED' && typeof r.turn === 'string' && r.turn.toLowerCase() === lower,
+          waiting: r.status === 'NEW',
+          joined: (r.players || []).length,
+          max: 4,
           updated: Date.parse(r.created_at) || 0,
         }));
       },
@@ -334,7 +349,7 @@ function createMyGames({
 
   /**
    * The player's games in progress: { games: [{ game, title, id, url, with,
-   * yourTurn, updated }], sources: { <game>: { title, status: 'ok' | 'pending' | 'error' } } }.
+   * yourTurn, waiting, joined, max, updated }], sources: { <game>: { title, status: 'ok' | 'pending' | 'error' } } }.
    * "pending" means that game is still being asked: ask again shortly.
    */
   async function list(player) {
@@ -353,7 +368,9 @@ function createMyGames({
       status[source.name] = { title: source.title, status: entry.status };
       for (const g of entry.games) games.push({ game: source.name, title: source.title, ...g });
     }
-    games.sort((a, b) => Number(b.yourTurn) - Number(a.yourTurn) || b.updated - a.updated);
+    // Games waiting on you first, then games under way, then those still
+    // waiting for players to join.
+    games.sort((a, b) => Number(b.yourTurn) - Number(a.yourTurn) || Number(a.waiting) - Number(b.waiting) || b.updated - a.updated);
     return { games, sources: status };
   }
 
