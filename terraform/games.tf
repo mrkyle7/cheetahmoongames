@@ -280,6 +280,19 @@ locals {
       # Each player's life (my-life.tf). Login keys from Bartenders' database.
       env = merge({ GAMES_BUCKET = "${var.project_name}-my-life" }, local.keys_from_supabase)
     }
+
+    # The Adventure: a single-player adventure that runs in the browser. The
+    # server only serves files and stores each player's journey, so players
+    # can land on any instance and the defaults suit it.
+    the-adventure = {
+      name        = "the-adventure"
+      subdomain   = "the-adventure"
+      github_repo = "mrkyle7/the-adventure"
+
+      # Each signed-in player's journey (the-adventure.tf). Login keys from
+      # Bartenders' database.
+      env = merge({ SAVES_BUCKET = "${var.project_name}-the-adventure" }, local.keys_from_supabase)
+    }
   }
 }
 
