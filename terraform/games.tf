@@ -281,13 +281,20 @@ locals {
       env = merge({ GAMES_BUCKET = "${var.project_name}-my-life" }, local.keys_from_supabase)
     }
 
-    # The Adventure: a single-player adventure that runs in the browser. The
-    # server only serves files and stores each player's journey, so players
-    # can land on any instance and the defaults suit it.
+    # The Adventure: an adventure that runs in the browser, which up to three
+    # friends can play together. Their rooms live in memory, so everyone must
+    # reach the same instance. Each open page keeps a server-sent events
+    # stream open for its room: let one last an hour (the page reconnects
+    # after) and let one instance hold many.
     the-adventure = {
       name        = "the-adventure"
       subdomain   = "the-adventure"
       github_repo = "mrkyle7/the-adventure"
+
+      max_instances    = 1
+      timeout          = "3600s"
+      concurrency      = 1000
+      session_affinity = true
 
       # Each signed-in player's journey (the-adventure.tf). Login keys from
       # Bartenders' database.
