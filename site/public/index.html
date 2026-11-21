@@ -101,6 +101,8 @@
         .guess .art svg { width: 100%; height: 100%; }
         .mylife .art { background: #ff8a65; }
         .mylife .art svg { width: 100%; height: 100%; }
+        .adventure .art { background: #14102a; }
+        .adventure .art svg { width: 100%; height: 100%; }
 
         /* Your games in progress, at the top once signed in. */
         .mygames {
@@ -178,6 +180,7 @@
         .shapes .play { background: #b3261e; }
         .guess .play { background: #5b3fb0; }
         .mylife .play { background: #b8432a; }
+        .adventure .play { background: #4a3fa0; }
 
         footer {
             margin-top: 44px; color: var(--muted); font-size: 14px;
@@ -670,6 +673,50 @@
                     <h2>My Life</h2>
                     <p>Live a whole life, one choice at a time. Start as a newborn: cry, poo, nap and grow while real life happens around you, from colic and teething to tired parents and your first word. Every life is different, and it keeps your place.</p>
                     <span class="play">Play My Life</span>
+                </div>
+            </a>
+
+            <a class="game adventure" href="https://the-adventure.cheetahmoongames.com/"
+               aria-label="Play The Adventure">
+                <div class="art">
+                    <!-- The game's icon: the broken Moon with the Ember at its heart, and a little fox. -->
+                    <svg viewBox="-120 0 752 512" aria-hidden="true">
+                        <defs>
+                            <radialGradient id="adv-glow" cx="50%" cy="50%" r="50%">
+                                <stop offset="0" stop-color="#dfe8ff" stop-opacity="0.5"/>
+                                <stop offset="1" stop-color="#dfe8ff" stop-opacity="0"/>
+                            </radialGradient>
+                            <radialGradient id="adv-ember" cx="50%" cy="50%" r="50%">
+                                <stop offset="0" stop-color="#ffffff"/>
+                                <stop offset="0.35" stop-color="#ffe9a8"/>
+                                <stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/>
+                            </radialGradient>
+                        </defs>
+                        <circle cx="256" cy="236" r="210" fill="url(#adv-glow)"/>
+                        <g fill="#eef2ff">
+                            <path d="M246 226 L246 90 A146 146 0 0 0 110 226 Z" transform="rotate(-4 246 226) translate(-8 -6)"/>
+                            <path d="M266 226 L266 90 A146 146 0 0 1 402 226 Z" transform="rotate(4 266 226) translate(8 -6)"/>
+                            <path d="M266 246 L402 246 A146 146 0 0 1 266 382 Z" transform="rotate(-3 266 246) translate(8 6)"/>
+                            <path d="M246 246 L110 246 A146 146 0 0 0 246 382 Z" transform="rotate(3 246 246) translate(-8 6)"/>
+                        </g>
+                        <circle cx="190" cy="170" r="16" fill="#c8d2f0"/>
+                        <circle cx="330" cy="300" r="22" fill="#c8d2f0"/>
+                        <circle cx="256" cy="236" r="70" fill="url(#adv-ember)"/>
+                        <circle cx="256" cy="236" r="18" fill="#ffffff"/>
+                        <path d="M-120 440 Q100 380 260 420 T632 400 V512 H-120 Z" fill="#1d1640"/>
+                        <g transform="translate(330 380)">
+                            <path d="M-30 32 Q-60 10 -48 -10 Q-40 12 -18 18 Z" fill="#ff8a3d"/>
+                            <ellipse cx="0" cy="22" rx="30" ry="16" fill="#ff8a3d"/>
+                            <circle cx="28" cy="4" r="16" fill="#ff8a3d"/>
+                            <path d="M18 -6 L22 -26 L30 -8 Z M30 -8 L40 -24 L42 -2 Z" fill="#ff8a3d"/>
+                            <circle cx="31" cy="0" r="3" fill="#120e24"/>
+                        </g>
+                    </svg>
+                </div>
+                <div class="body">
+                    <h2>The Adventure</h2>
+                    <p>Gather the shards of a broken Moon. Bond with wild kin that evolve and hide secret powers, craft your own spells from glyphs, take the shapes of great beasts to reach hidden places, and hunt down unique artifacts. A single-player adventure that keeps your place.</p>
+                    <span class="play">Play The Adventure</span>
                 </div>
             </a>
         </section>
