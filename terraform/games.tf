@@ -208,6 +208,9 @@ locals {
       max_instances = 1
       timeout       = "3600s"
       concurrency   = 1000
+
+      # Its leaderboard is saved here (the-pirates.tf).
+      env = { GAMES_BUCKET = "${var.project_name}-the-pirates" }
     }
 
     crazy-science = {

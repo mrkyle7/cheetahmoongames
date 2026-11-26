@@ -13,7 +13,7 @@ The infrastructure is not in this repo. The Cloud Run service, image registry, s
 Check what's done before starting. Ask the user if unsure, and update these boxes as steps complete.
 
 - [x] Repo created from the skeleton (`scripts/new-game.sh`)
-- [ ] `__NAME__` entry added to `terraform/games.tf` in mrkyle7/cheetahmoongames, merged, and its workflow applied successfully
+- [ ] `__NAME__` entry added to `terraform/games.tf` in mrkyle7/cheetahmoongames, with its storage bucket in `terraform/__NAME__.tf` and `GAMES_BUCKET` set, merged, and its workflow applied successfully
 - [ ] Card for the game added to `site/public/index.html` in mrkyle7/cheetahmoongames (can be the same pull request)
 - [ ] The game's own icon in `public/icon.svg`, with the PNGs in `public/icons/` rendered from it, and the same art on its home page card
 - [ ] A push to `main` deployed successfully (Actions → CI/CD). Every push to `main` deploys; there is no setting or repo variable to turn on, so never tell anyone to set one (an old `DEPLOY_ENABLED` variable is gone).
@@ -33,7 +33,11 @@ Check what's done before starting. Ask the user if unsure, and update these boxe
 - **Its own icons.** Replace the placeholder `public/icon.svg` (the favicon) with the game's own art, then render the PNGs in `public/icons/` from it; see "Icons and installing" in ADDING_A_GAME.md. Every page links the favicon, the Apple icon and the manifest.
 - **Installable.** Keep `public/manifest.webmanifest` (name and colours in step with the game), `public/sw.js` and `public/offline.html`, and register the service worker on every page. The service worker must not cache the game itself, only the offline page.
 - **Don't log, store or forward the `userjwt` cookie.** Only `auth.js` reads it, and it only ever sends it back to the accounts service that issued it (to report the players it sees, for the owner's login alerts, and to ask who a parent's children are, `auth.children(req)`). Keep `auth.js` as it is in the skeleton; fixes to it go in mrkyle7/cheetahmoongames first.
-- **Notifications** (telling players it's their turn): build them as "Notifications" in ADDING_A_GAME.md describes. The server makes its own Web Push keys and keeps them in the game's storage; never put them in Secret Manager or GitHub secrets.
+- **Notifications** for what happens while a player isn't looking ("it's your turn", "a friend joined your game"): every game has them. Build them as "Notifications" in ADDING_A_GAME.md describes. The server makes its own Web Push keys and keeps them in the game's bucket; never put them in Secret Manager or GitHub secrets.
+- **A quit button.** Once the game is more than this placeholder, every screen a player can be on in a game (playing, waiting for others, the results) has a "Quit game" button back to the game's own home screen. Quitting a game in progress tells the server and, if it gives something up, asks first in the game's own pop-up. See "Quitting and pop-ups" in ADDING_A_GAME.md.
+- **Pop-ups in the game's own style.** Never `alert()`, `confirm()` or `prompt()`: every question, warning or message is drawn by the game, as a proper dialog. `test/server.test.js` fails if a page or script uses them; keep that test.
+- **Its own storage bucket.** `GAMES_BUCKET` names the game's bucket (made in mrkyle7/cheetahmoongames, `terraform/__NAME__.tf`). Keep anything that must last there, read and written with the game's service account and a generation check; see "Give it a storage bucket" in ADDING_A_GAME.md.
+- **Opens as the app when linked to.** Keep `launch_handler` and `handle_links` in `public/manifest.webmanifest`, `scope` and `start_url` as `/`, and read anything in a link (like an invite code) when the page loads, since an open window is reused. See "Opening as the app" in ADDING_A_GAME.md.
 - **Instances:** by default up to 3 can run, and players may land on different ones. If players must meet on the same server, for example rooms kept in memory, set `max_instances = 1` (and, for WebSockets, `timeout`, `concurrency` and `session_affinity`) in the games.tf entry. The Boxer does this.
 
 ## Commands

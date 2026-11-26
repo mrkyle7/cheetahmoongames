@@ -181,9 +181,13 @@ Next steps (details in ADDING_A_GAME.md):
       name        = "$NAME"
       subdomain   = "$SUBDOMAIN"
       github_repo = "$OWNER/$NAME"
+
+      env = { GAMES_BUCKET = "\${var.project_name}-$NAME" }
     }
 
-   and a card to site/public/index.html. Open a pull request, check its plan
+   its storage bucket in terraform/$NAME.tf (copy terraform/the-pirates.tf;
+   see "Give it a storage bucket" in ADDING_A_GAME.md), and a card to
+   site/public/index.html. Open a pull request, check its plan
    only adds resources, and merge it.
 
 2. Once that merge's Deploy run has applied, push to the game's main branch

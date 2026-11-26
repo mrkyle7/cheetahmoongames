@@ -77,6 +77,9 @@ test('installable: icons, manifest and service worker are served', async () => {
     const manifest = await manifestRes.json();
     assert.strictEqual(manifest.start_url, '/');
     assert.strictEqual(manifest.display, 'standalone');
+    // Links to the game open the installed app (ADDING_A_GAME.md, "Opening as the app").
+    assert.strictEqual(manifest.handle_links, 'preferred');
+    assert.ok(manifest.launch_handler && [].concat(manifest.launch_handler.client_mode).includes('navigate-existing'));
     const sizes = manifest.icons.map((i) => i.sizes);
     assert.ok(sizes.includes('192x192') && sizes.includes('512x512'), 'Chrome needs 192 and 512 px icons');
     assert.ok(manifest.icons.some((i) => i.purpose === 'maskable'));
@@ -93,4 +96,24 @@ test('installable: icons, manifest and service worker are served', async () => {
     assert.match(await sw.text(), /offline\.html/);
     assert.strictEqual((await fetch(`${base}/offline.html`)).status, 200);
   });
+});
+
+// Every pop-up is the game's own: never the browser's alert, confirm or prompt
+// (ADDING_A_GAME.md, "Quitting and pop-ups").
+test('no browser alert, confirm or prompt boxes', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const files = [];
+  const walk = (dir) => {
+    for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, f.name);
+      if (f.isDirectory()) walk(p);
+      else if (/\.(html|js)$/.test(f.name)) files.push(p);
+    }
+  };
+  walk(path.join(__dirname, '..', 'public'));
+  for (const file of files) {
+    const text = fs.readFileSync(file, 'utf8');
+    assert.doesNotMatch(text, /(^|[^.\w])(window\.)?(alert|confirm|prompt)\s*\(/m, `${path.basename(file)} uses a browser pop-up`);
+  }
 });
