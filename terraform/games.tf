@@ -29,8 +29,9 @@ locals {
       concurrency      = 1000
       max_instances    = 1
 
-      # Login keys from Bartenders' database (see local.keys_from_supabase).
-      env = local.keys_from_supabase
+      # Login keys from Bartenders' database (see local.keys_from_supabase),
+      # and the adventure leaderboard's bucket (the-boxer.tf).
+      env = merge(local.keys_from_supabase, { SCORES_BUCKET = "${var.project_name}-the-boxer" })
     }
 
     bezique = {
