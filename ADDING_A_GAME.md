@@ -3,7 +3,7 @@
 Each game lives in its own GitHub repo and runs as its own Cloud Run service at `<subdomain>.cheetahmoongames.com`, like [The Boxer](https://github.com/mrkyle7/the-boxer). Adding one takes four steps:
 
 1. **Create the game's repo** with `scripts/new-game.sh`. You get a working skeleton with the deploy workflow already filled in.
-2. **Add the game in this repo:** an entry in `terraform/games.tf` and a card on the home page, in one pull request. Merging it creates the game's Cloud Run service, image registry, subdomain, DNS record, and its IAM permissions.
+2. **Add the game in this repo:** an entry in `terraform/games.tf`, its storage bucket in `terraform/<name>.tf`, and a card on the home page, in one pull request. Merging it creates the game's Cloud Run service, image registry, bucket, subdomain, DNS record, and its IAM permissions.
 3. **Deploy the game** by pushing to its `main`, once step 2 is applied.
 4. **Wait for HTTPS** on the new subdomain.
 
@@ -60,6 +60,13 @@ And every game on the site has these, which the skeleton starts you with. Keep t
 - **Its own icons:** a favicon and app icons in the game's own style, replacing the placeholder, plus card art on the home page. See [Icons and installing](#icons-and-installing).
 - **Installable as an app** on phones and desktops: a web app manifest and a service worker. See [Icons and installing](#icons-and-installing).
 - **The "Buy me a coffee" badge** on the game's main page, linking to `https://buymeacoffee.com/mrkyle7`, like the skeleton's footer. See [Buy me a coffee](#buy-me-a-coffee).
+- **Opens as the app when linked to.** Once a player has installed the game, a link to it (from the home page, a friend's invite, a notification) opens the installed app, not a browser tab. The skeleton's manifest has what this needs. See [Opening as the app](#opening-as-the-app).
+
+And every game must have these as it grows past the skeleton's placeholder page:
+- **A quit button** on every screen a player can be on once they're in a game (playing, waiting for others, the results), going back to the game's home screen (its lobby or start page). See [Quitting and pop-ups](#quitting-and-pop-ups).
+- **Pop-ups and warnings in the game's own style.** Never the browser's `alert()`, `confirm()` or `prompt()`: they look like an error from the browser, can't be styled, and block the page. The skeleton's tests fail if a page uses them. See [Quitting and pop-ups](#quitting-and-pop-ups).
+- **Notifications** for whatever happens while a player isn't looking: their turn, a friend joining their game, a game they're waiting for starting. See [Notifications](#notifications).
+- **Its own storage bucket,** made with the game in step 2 even if nothing uses it yet, so saving something later (scores, records, notification keys) needs no new infrastructure. See [Give it a storage bucket](#give-it-a-storage-bucket).
 
 ## 2. Add the game in this repo
 
@@ -97,6 +104,42 @@ Those three fields are all a simple game needs. The optional ones:
 | `secrets` | none | Settings that are secret, e.g. `["SUPABASE_URL", "SUPABASE_KEY"]`. See [Games that need secrets or a database](#games-that-need-secrets-or-a-database). |
 | `deploy_branches` | `["main"]` | Branches whose workflows may deploy. Change it only if the game's repo deploys from another branch, e.g. `["master"]`. |
 
+### Give it a storage bucket
+
+Every game gets a Cloud Storage bucket of its own from the start, even if nothing uses it yet: one day it'll want to keep scores, players' records or its notification keys, and a bucket made now means that needs no infrastructure change then. Add `terraform/snap.tf`, like `the-pirates.tf`:
+
+```hcl
+resource "google_storage_bucket" "snap" {
+  name     = "${var.project_name}-snap"
+  location = var.region
+  project  = var.project_name
+
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  labels = { env = var.env, app = "snap", sensitive = "false" }
+}
+
+# Read, write, list and delete objects in this bucket only.
+resource "google_storage_bucket_iam_member" "snap_run" {
+  bucket = google_storage_bucket.snap.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${module.game["snap"].run_service_account}"
+}
+```
+
+and tell the game where it is, in its `games.tf` entry:
+
+```hcl
+    snap = {
+      ...
+      env = { GAMES_BUCKET = "${var.project_name}-snap" }
+    }
+```
+
+Only `snap-run` can use it. A regional Standard bucket in us-east1 is covered by the Cloud Storage free tier. The game reads and writes it with its own service account, through the metadata server, so there are no keys: The Pirates' `src/store.js` is a dependency-free one to copy (it keeps files in memory when `GAMES_BUCKET` isn't set, for running locally and in tests). Write with a generation check (`ifGenerationMatch`) so one server's save never overwrites another's. Add a lifecycle rule only for files that should expire, and keep it away from anything kept for good.
+
 ### Add a card to `site/public/index.html`
 
 Copy one of the `<a class="game ...">` blocks in the `games` section and change:
@@ -123,7 +166,7 @@ Every game needs its own permissions: nothing is shared with other games, and th
   - `roles/run.viewer` on the project: read-only, so its rollback step can list revisions
 - **The GitHub sign-in rule** is updated to accept tokens from `mrkyle7/snap`. That's the one shared resource that changes.
 
-If the game needs anything more, such as secrets, a database or storage, add it in its own Terraform file here and grant `snap-run` (or `snap-deploy`) access there; see "Things to know" below.
+If the game needs anything more, such as secrets or a database, add it in its own Terraform file here (the one with its bucket) and grant `snap-run` (or `snap-deploy`) access there; see "Things to know" below.
 
 ### Open the pull request
 
@@ -133,6 +176,8 @@ The workflow posts the Terraform plan in the run's summary. For a new game it sh
 - the service and its public access
 - the domain mapping and DNS record
 - the IAM bindings listed above
+
+and 2 more for its storage: `google_storage_bucket.snap` and `google_storage_bucket_iam_member.snap_run`.
 
 It should also **update** `google_iam_workload_identity_pool_provider.github` to allow the new repo. Nothing else should change.
 
@@ -163,7 +208,7 @@ It's live when `Ready` is `True`. Until then the address won't load over HTTPS. 
 
 Open a Claude session in the game's repo. Its `CLAUDE.md` tells Claude to read all of this file before any work, and has:
 - the checklist for getting the game live, so a session can see which of the steps above are done
-- the rules the game must keep: `PORT`, serving at `/`, no local state, leaving the workflow's names alone, keeping `PAGE_MARKER` current, and knowing players only through `auth.js`
+- the rules the game must keep: `PORT`, serving at `/`, no local state, leaving the workflow's names alone, keeping `PAGE_MARKER` current, knowing players only through `auth.js`, and the must-haves above (quit buttons, styled pop-ups, notifications, its bucket, opening as the app)
 
 ## Icons and installing
 
@@ -187,6 +232,31 @@ npx -y -p playwright node scripts/render-icons.js ../snap/public/icon.svg ../sna
 Every page of the game should link the favicon, the Apple icon and the manifest, and register the service worker, as `public/index.html` does. Check it in Chrome: DevTools → Application → Manifest shows any problems with installing.
 
 Use the same art for the game's card on the home page (`site/public/index.html`), so players recognise it.
+
+### Opening as the app
+
+Once a player has installed a game, any link to it should open the installed app rather than a browser tab: the card on the home page, a friend's invite link, a notification. The skeleton's manifest asks for this:
+
+```json
+"launch_handler": { "client_mode": ["navigate-existing", "auto"] },
+"handle_links": "preferred",
+```
+
+- `handle_links: "preferred"` asks the browser to open links in the app's scope in the installed app. Android does this for an installed game anyway; desktop Chrome and Edge do it when this is set (the player can turn it off in the app's settings).
+- `launch_handler` with `navigate-existing` reuses the game's window if it's already open, going to the link's address, instead of opening a second copy. So a link with something in it, like an invite's `?room=ABCD`, has to be read when the page loads.
+- Keep `scope` and `start_url` as `/`, so every page of the game counts as the app, and link to the game's own subdomain (`https://snap.cheetahmoongames.com/...`), never through a redirect from somewhere else.
+- iPhones and iPads can't open links in an installed web app: there, a link opens Safari. Nothing to do about that, but don't rely on it.
+
+## Quitting and pop-ups
+
+**A quit button.** Every screen a player can be on once they're in a game (playing, waiting for others to join, the results) has a button labelled "Quit game" (or "Back to …" on the results), going back to the game's own home screen: its lobby or start page, not cheetahmoongames.com, which the "← Cheetah Moon Games" link is for. Quitting a game in progress tells the server, so the player's place is freed or handed on (The Pirates gives their ship to a computer pirate), and asks first, in a pop-up, if it gives something up. The Pirates' `leave()` and `askToLeave()` in `public/game.js` are one way.
+
+**Pop-ups in the game's style.** Anything that asks, warns or tells (a "Quit the game?", a "Wrong answer!", a "You're out of lives") is drawn by the game, in its own colours and fonts, never the browser's `alert()`, `confirm()` or `prompt()`. Those look like the browser complaining, can't be styled, block the whole page, and some apps' web views don't show them at all. A game's pop-up should:
+- be a real dialog: `role="dialog"`, `aria-modal="true"` and a label, with focus moved into it and back afterwards;
+- close with Escape and a tap outside it, when that's safe;
+- put the safe choice first and give the risky one a clear colour (The Pirates: "⚓ Keep playing" first, a red "🚪 Quit game").
+
+The skeleton's tests check its pages and scripts don't call `alert(`, `confirm(` or `prompt(`; keep that test as the game grows.
 
 ## Buy me a coffee
 
@@ -264,7 +334,7 @@ A game that has something to show parents:
 ## Things to know
 
 - **Games that need secrets or a database.** See [below](#games-that-need-secrets-or-a-database).
-- **Notifications** ("it's your turn", even with the game closed). See [Notifications](#notifications): the server makes its own keys, so they need no secrets.
+- **Notifications** ("it's your turn", "a friend joined", even with the game closed). Every game has them; see [Notifications](#notifications): the server makes its own keys, so they need no secrets, and keeps them in the game's bucket.
 - **Removing a game.** Delete its entry in `games.tf` and its card. The plan will delete its service, subdomain and DNS record, so the merge run refuses to apply it. Run the workflow by hand (Actions → Deploy → Run workflow) with **allow_destroy** ticked. This also deletes the game's image registry and every image in it. Archive or delete its repo separately.
 - **Renaming a game** (`name` or `subdomain`) replaces its service or domain mapping, which also needs **allow_destroy**. A new subdomain gets a new certificate, so expect a gap while it's issued.
 - **Changing the skeleton.** Edit `scripts/game-template/`. Every pull request here generates a test game from it and runs that game's tests and container, so a broken template shows up before merging. Existing games don't change; update them by hand if they need the fix.
@@ -287,13 +357,13 @@ A game that keeps anything beyond one server's life, like saved games or scores,
 3. **Filling them in.** Store the real values as GitHub Actions secrets in the game's repo. The game's deploy job copies them into Secret Manager before deploying, and applies the migrations: copy the "Update the database" and "Sync the database secrets to Secret Manager" steps from Bezique's `.github/workflows/ci-cd.yml`. Its `CLAUDE.md` ("Saved games") lists which Supabase values to use.
 4. **Testing.** Bezique's CI runs `supabase start` so its tests use a real local database built from the migrations.
 
-Anything that isn't a secret or a Supabase project (a storage bucket, say) is new infrastructure: add it in a file of its own in `terraform/`, as `bartenders.tf` does for Bartenders, and grant `<name>-run` access to just that.
+Every game already has a bucket (see [Give it a storage bucket](#give-it-a-storage-bucket)); many games need nothing more than that. Anything else that isn't a secret or a Supabase project is new infrastructure: add it to the game's file in `terraform/`, as `bartenders.tf` does for Bartenders, and grant `<name>-run` access to just that.
 
 Only one server should write to a game's database at a time. If the game keeps state in memory, like Bezique, keep `max_instances = 1`, and have a starting server take over from the old one cleanly during a deploy. Bezique's `supabase/migrations` and `src/bezique/persistence.js` show one way.
 
 ## Notifications
 
-Turn-based games should tell players when it's their move, even with the game closed, with [Web Push](https://developer.mozilla.org/en-US/docs/Web/API/Push_API). Bartenders of Corfu, Bezique and King's Keep all do. Build it this way by default:
+Every game should tell players what happens while they aren't looking, even with the game closed, with [Web Push](https://developer.mozilla.org/en-US/docs/Web/API/Push_API). For a turn-based game that's "it's your move" (Bartenders of Corfu, Bezique and King's Keep all do this); for a live game it's things like "a friend joined your game", "your game is starting" or "someone took your treasure". Keep them few and worth reading: one for each thing a player would come back for, never one per move. Build it this way by default:
 
 - **The keys are made by the server, not set as secrets.** Web Push signs each notification with a key pair (VAPID keys). The first server that needs a pair makes one and saves it in the game's own storage. Every later server reads that pair, so devices keep working across deploys. If two servers start at once, only the first pair saved is kept, and both use it: save with "insert unless one exists", then read back.
   - With a database: a one-row `vapid_keys` table, with row-level security on so only the server's secret key can read it. Bezique (`src/bezique/push.js`, `pushFromStore()`) and Bartenders (`app/push.py`, `get_keys()`) do this.
